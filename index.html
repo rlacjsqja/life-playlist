@@ -1007,16 +1007,27 @@ async function searchSpotify(term) {
   return (data.items || []).map(item => Object.assign({ source: 'spotify' }, item));
 }
 
+// 진단용: 각 검색 소스가 실패한 이유를 잠깐 기록해서 화면에 보여줍니다 (원인 파악되면 제거 예정)
+function describeSearchError(source, err) {
+  return source + ': ' + (err && err.message ? err.message : String(err));
+}
+
 async function searchAll(term) {
   // 띄어쓰기 유무 때문에 검색이 안 되는 경우(예: "내사랑내곁에" ↔ "내 사랑 내 곁에")를 줄이기 위해
   // 원래 검색어와 띄어쓰기를 뺀 검색어를 함께 조회해서 합칩니다.
   const altTerm = term.replace(/\s+/g, '');
   const terms = altTerm && altTerm !== term ? [term, altTerm] : [term];
+  const debugErrors = [];
   const resultSets = await Promise.all(
-    terms.flatMap(t => [searchItunes(t).catch(() => []), searchSpotify(t).catch(() => [])])
+    terms.flatMap(t => [
+      searchItunes(t).catch(err => { debugErrors.push(describeSearchError('iTunes', err)); return []; }),
+      searchSpotify(t).catch(err => { debugErrors.push(describeSearchError('Spotify', err)); return []; })
+    ])
   );
   const merged = dedupeResults(resultSets.flat());
-  return rankByRelevance(merged, term).slice(0, 12);
+  const ranked = rankByRelevance(merged, term).slice(0, 12);
+  ranked.debugErrors = debugErrors;
+  return ranked;
 }
 
 // ---------- 가수 이름으로 그 가수의 곡을 여러 개 한번에 찾기 (일반 검색과 다르게 결과를 최대한 많이, 가수 한정으로) ----------
@@ -1049,19 +1060,22 @@ async function searchSpotifyByArtist(artistName) {
 }
 
 async function searchArtistAll(artistName) {
+  const debugErrors = [];
   const [itunesResults, spotifyResults] = await Promise.all([
-    searchItunesByArtist(artistName).catch(() => []),
-    searchSpotifyByArtist(artistName).catch(() => [])
+    searchItunesByArtist(artistName).catch(err => { debugErrors.push(describeSearchError('iTunes', err)); return []; }),
+    searchSpotifyByArtist(artistName).catch(err => { debugErrors.push(describeSearchError('Spotify', err)); return []; })
   ]);
   const merged = dedupeResults([...itunesResults, ...spotifyResults]);
   // 정규앨범 우선, 그다음 발매년도 오래된순으로 정렬해서 디스코그래피처럼 보이게 함
-  return merged.sort((a, b) => {
+  const sorted = merged.sort((a, b) => {
     const prioDiff = priorityScore(a) - priorityScore(b);
     if (prioDiff !== 0) return prioDiff;
     const aDate = a.releaseDate ? new Date(a.releaseDate).getTime() : Infinity;
     const bDate = b.releaseDate ? new Date(b.releaseDate).getTime() : Infinity;
     return aDate - bDate;
   });
+  sorted.debugErrors = debugErrors;
+  return sorted;
 }
 
 // 같은 곡이 여러 검색(원문/띄어쓰기 제거, iTunes/Spotify)에서 중복으로 나오는 걸 제목+가수 기준으로 제거
@@ -1274,14 +1288,17 @@ searchInput.addEventListener('input', () => {
       currentResults = results;
       renderSuggestions(results);
     } catch (err) {
-      suggBox.innerHTML = '<div class="sugg-empty">검색에 실패했어요. 잠시 후 다시 시도해주세요.</div>';
+      suggBox.innerHTML = '<div class="sugg-empty">검색에 실패했어요: ' + escapeHtml(err && err.message ? err.message : String(err)) + '</div>';
     }
   }, 300);
 });
 
 function renderSuggestions(results) {
   if (!results.length) {
-    suggBox.innerHTML = '<div class="sugg-empty">검색 결과가 없어요. 아래 "직접 입력하기"로 추가할 수 있어요.</div>';
+    const dbg = (results.debugErrors && results.debugErrors.length)
+      ? '<div class="sugg-empty" style="font-size:11px;">(진단용: ' + escapeHtml(results.debugErrors.join(' / ')) + ')</div>'
+      : '';
+    suggBox.innerHTML = '<div class="sugg-empty">검색 결과가 없어요. 아래 "직접 입력하기"로 추가할 수 있어요.</div>' + dbg;
     suggBox.classList.add('show');
     return;
   }
@@ -1708,8 +1725,11 @@ function renderArtistResults(results) {
   const listEl = document.getElementById('artistResultsList');
   const toolbarEl = document.getElementById('artistToolbar');
   if (!results.length) {
+    const dbg = (results.debugErrors && results.debugErrors.length)
+      ? '<div class="sugg-empty" style="font-size:11px;">(진단용: ' + escapeHtml(results.debugErrors.join(' / ')) + ')</div>'
+      : '';
     listEl.style.display = 'block';
-    listEl.innerHTML = '<div class="sugg-empty">검색 결과가 없어요. 가수 이름을 다르게 입력해보세요.</div>';
+    listEl.innerHTML = '<div class="sugg-empty">검색 결과가 없어요. 가수 이름을 다르게 입력해보세요.</div>' + dbg;
     toolbarEl.style.display = 'none';
     updateArtistAddButton();
     return;
@@ -1758,7 +1778,7 @@ async function runArtistSearch() {
     artistSearchResults = await searchArtistAll(name);
     renderArtistResults(artistSearchResults);
   } catch (err) {
-    listEl.innerHTML = '<div class="sugg-empty">검색에 실패했어요. 잠시 후 다시 시도해주세요.</div>';
+    listEl.innerHTML = '<div class="sugg-empty">검색에 실패했어요: ' + escapeHtml(err && err.message ? err.message : String(err)) + '</div>';
   }
 }
 

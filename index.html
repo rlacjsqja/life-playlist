@@ -960,28 +960,15 @@ async function initAuth() {
 }
 window.addEventListener('load', initAuth);
 
-// ---------- iTunes Search 자동완성 (JSONP 방식, CORS 이슈 없음) ----------
-let jsonpCounter = 0;
-function jsonp(url) {
-  return new Promise((resolve, reject) => {
-    const cbName = 'itunesCb_' + (jsonpCounter++);
-    const script = document.createElement('script');
-    window[cbName] = (data) => {
-      resolve(data);
-      delete window[cbName];
-      script.remove();
-    };
-    script.onerror = () => { reject(new Error('iTunes 검색 실패')); script.remove(); };
-    script.src = url + '&callback=' + cbName;
-    document.body.appendChild(script);
-  });
-}
-
-// iTunes 결과를 공통 형태로 정규화
+// ---------- iTunes 검색 ----------
+// 일부 통신사/공유기 네트워크에서 브라우저가 itunes.apple.com에 직접 접속하지 못하는 경우가 있어서,
+// 스포티파이처럼 Supabase Edge Function을 거쳐서 대신 조회합니다.
 async function searchItunes(term) {
-  // country=KR: 한국 스토어 기준으로 검색해서 제목/가수명이 영어보다 한글로 나올 확률을 높임
-  const url = 'https://itunes.apple.com/search?media=music&entity=song&limit=15&country=KR&lang=ko_kr&term=' + encodeURIComponent(term);
-  const data = await jsonp(url);
+  if (!isConfigured) return [];
+  const url = edgeFunctionUrl('itunes-search') + '?term=' + encodeURIComponent(term) + '&limit=15';
+  const res = await fetch(url, { headers: edgeFunctionHeaders() });
+  const data = await res.json();
+  if (!data.success) return [];
   return (data.results || []).map(r => ({
     source: 'itunes',
     title: r.trackName || '',
@@ -1034,8 +1021,11 @@ async function searchAll(term) {
 // iTunes는 attribute=artistTerm으로 "이 가수 이름"에 한정해서 검색할 수 있고,
 // 스포티파이는 검색어 자체에 artist: 필터를 붙이면 같은 효과를 냄(Edge Function 코드 변경 없이 재사용 가능).
 async function searchItunesByArtist(artistName) {
-  const url = 'https://itunes.apple.com/search?media=music&entity=song&attribute=artistTerm&limit=50&country=KR&lang=ko_kr&term=' + encodeURIComponent(artistName);
-  const data = await jsonp(url);
+  if (!isConfigured) return [];
+  const url = edgeFunctionUrl('itunes-search') + '?term=' + encodeURIComponent(artistName) + '&attribute=artistTerm&limit=50';
+  const res = await fetch(url, { headers: edgeFunctionHeaders() });
+  const data = await res.json();
+  if (!data.success) return [];
   return (data.results || []).map(r => ({
     source: 'itunes',
     title: r.trackName || '',

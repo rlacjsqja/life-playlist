@@ -1,0 +1,2357 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>내 인생 플레이리스트</title>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#0f1115;
+    --card:#181b22;
+    --card-hover:#20242e;
+    --border:#2a2e38;
+    --text:#f2f3f5;
+    --text-dim:#9a9fa8;
+    --accent:#7c8cff;
+    --accent-2:#ff7cb0;
+    --danger:#ff6b6b;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html{
+    /* 일부 안드로이드 브라우저(특히 카카오톡 등 인앱 브라우저)가 시스템 글자 크기 설정에 맞춰
+       텍스트를 임의로 확대하면서 레이아웃이 화면 밖으로 밀려나는 걸 방지 */
+    -webkit-text-size-adjust:100%;
+    text-size-adjust:100%;
+  }
+  html, body{
+    /* 특정 요소가 화면 너비를 넘어가더라도 전체 페이지가 옆으로 스크롤되며
+       화면이 잘려 보이는 문제를 막기 위한 안전장치 */
+    overflow-x:hidden;
+    max-width:100%;
+  }
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    padding-bottom:60px;
+  }
+  header{
+    padding:28px 20px 16px;
+    text-align:center;
+  }
+  header h1{
+    margin:0;
+    font-size:22px;
+    font-weight:700;
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+  }
+  header p{
+    margin:6px 0 0;
+    color:var(--text-dim);
+    font-size:13px;
+  }
+  .wrap{
+    max-width:640px;
+    margin:0 auto;
+    padding:0 16px;
+  }
+  .search-box{
+    position:relative;
+    margin-top:8px;
+  }
+  .search-box input{
+    width:100%;
+    padding:14px 16px;
+    font-size:15px;
+    border-radius:12px;
+    border:1px solid var(--border);
+    background:var(--card);
+    color:var(--text);
+    outline:none;
+  }
+  .search-box input:focus{
+    border-color:var(--accent);
+  }
+  .suggestions{
+    position:absolute;
+    top:calc(100% + 6px);
+    left:0;right:0;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    overflow:hidden;
+    z-index:20;
+    max-height:360px;
+    overflow-y:auto;
+    display:none;
+    box-shadow:0 12px 30px rgba(0,0,0,.4);
+  }
+  .suggestions.show{display:block;}
+  .sugg-item{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:10px 12px;
+    cursor:pointer;
+    border-bottom:1px solid var(--border);
+  }
+  .sugg-item:last-child{border-bottom:none;}
+  .sugg-item:hover, .sugg-item.active{background:var(--card-hover);}
+  .sugg-item img{
+    width:42px;height:42px;border-radius:8px;flex-shrink:0;background:#333;
+  }
+  .sugg-text{min-width:0;}
+  .sugg-title{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sugg-sub{font-size:12px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sugg-empty, .sugg-loading{padding:14px;font-size:13px;color:var(--text-dim);text-align:center;}
+
+  .preview-card{
+    margin-top:14px;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:14px;
+    display:none;
+    gap:12px;
+  }
+  .preview-card.show{display:flex;}
+  .preview-card img{
+    width:64px;height:64px;border-radius:10px;flex-shrink:0;background:#333;
+  }
+  .preview-info{flex:1;min-width:0;}
+  .preview-info .t{font-weight:700;font-size:15px;}
+  .preview-info .s{font-size:13px;color:var(--text-dim);margin-top:2px;}
+  .preview-extra{
+    margin-top:10px;
+    display:flex;
+    gap:8px;
+  }
+  .preview-extra input, .preview-extra select{
+    flex:1;
+    padding:8px 10px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--bg);
+    color:var(--text);
+    font-size:13px;
+  }
+  .save-btn{
+    margin-top:12px;
+    width:100%;
+    padding:12px;
+    border:none;
+    border-radius:10px;
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    color:#fff;
+    font-weight:700;
+    font-size:14px;
+    cursor:pointer;
+  }
+  .save-btn:disabled{opacity:.5;cursor:not-allowed;}
+
+  .list-header{
+    margin-top:28px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .list-header h2{font-size:15px;color:var(--text-dim);font-weight:600;margin:0;}
+  .count-pill{
+    font-size:12px;
+    background:var(--card);
+    border:1px solid var(--border);
+    padding:3px 10px;
+    border-radius:999px;
+    color:var(--text-dim);
+  }
+
+  .filter-tabs{
+    display:flex;
+    gap:6px;
+    margin-top:12px;
+  }
+  .filter-tab{
+    flex:1;
+    padding:8px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--card);
+    color:var(--text-dim);
+    font-size:12.5px;
+    cursor:pointer;
+  }
+  .filter-tab.active{
+    background:var(--accent);
+    color:#fff;
+    border-color:var(--accent);
+    font-weight:600;
+  }
+  .nation-tag{color:var(--accent-2);}
+  .edit-btn{
+    background:none;border:none;color:var(--text-dim);
+    font-size:13px;cursor:pointer;padding:4px;line-height:1;flex-shrink:0;
+  }
+  .edit-btn:hover{color:var(--accent);}
+
+  .edit-actions{display:flex;gap:8px;margin-top:12px;}
+  .edit-actions .save-btn{margin-top:0;flex:1;}
+  .edit-actions .logout-btn{flex:0 0 auto;padding:0 16px;}
+
+  .preview-btn{
+    background:none;
+    border:1px solid var(--border);
+    color:var(--text);
+    font-size:11px;
+    cursor:pointer;
+    padding:3px 8px;
+    line-height:1.4;
+    border-radius:999px;
+    flex-shrink:0;
+  }
+  .preview-btn:hover{border-color:var(--accent);color:var(--accent);}
+  #previewPlayBtn{display:none;}
+
+  .song-list{margin-top:10px;display:flex;flex-direction:column;gap:6px;}
+  .song-card{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:6px 10px;
+  }
+  .song-card img{
+    width:38px;height:38px;border-radius:8px;background:#333;flex-shrink:0;
+  }
+  .song-main{flex:1;min-width:0;}
+  .song-text{display:flex;flex-direction:column;min-width:0;}
+  .song-title{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .song-sub{font-size:11px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+  .song-memo{font-size:10.5px;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .song-actions{display:flex;align-items:center;gap:2px;flex-shrink:0;}
+  .del-btn{
+    background:none;border:none;color:var(--text-dim);
+    font-size:15px;cursor:pointer;padding:4px;line-height:1;
+  }
+  .del-btn:hover{color:var(--danger);}
+
+  /* 보기 크기: 기본(위 규칙)은 "중간". 크게/작게는 아래에서 덮어씀 */
+  .density-tabs{display:flex;gap:4px;}
+  .density-tab{
+    padding:4px 9px;
+    border-radius:999px;
+    border:1px solid var(--border);
+    background:var(--card);
+    color:var(--text-dim);
+    font-size:11px;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .density-tab.active{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600;}
+
+  .song-list.density-large{gap:10px;}
+  .song-list.density-large .song-card{padding:12px 14px;gap:14px;}
+  .song-list.density-large .song-card img{width:56px;height:56px;border-radius:10px;}
+  .song-list.density-large .song-title{font-size:15px;}
+  .song-list.density-large .song-sub{font-size:12.5px;}
+  .song-list.density-large .song-memo{font-size:12px;margin-top:2px;}
+  .song-list.density-large .del-btn{font-size:18px;}
+  .song-list.density-large .edit-btn{font-size:15px;}
+
+  .song-list.density-small{gap:4px;}
+  .song-list.density-small .song-card{padding:4px 8px;gap:8px;}
+  .song-list.density-small .song-card img{width:24px;height:24px;border-radius:6px;}
+  .song-list.density-small .song-text{flex-direction:row;align-items:baseline;gap:6px;overflow:hidden;}
+  .song-list.density-small .song-title{font-size:12px;flex-shrink:0;max-width:50%;}
+  .song-list.density-small .song-sub{font-size:11px;flex:1;}
+  .song-list.density-small .song-memo{display:none;}
+  .song-list.density-small .del-btn{font-size:13px;padding:2px;}
+  .song-list.density-small .edit-btn{font-size:12px;padding:2px;}
+  .song-list.density-small .preview-btn{font-size:10px;padding:2px 6px;}
+
+  .empty-state{
+    text-align:center;
+    color:var(--text-dim);
+    padding:40px 20px;
+    font-size:13px;
+  }
+  .toast{
+    position:fixed;
+    bottom:20px;left:50%;
+    transform:translateX(-50%);
+    background:var(--card);
+    border:1px solid var(--border);
+    padding:10px 18px;
+    border-radius:999px;
+    font-size:13px;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .25s;
+    z-index:50;
+  }
+  .toast.show{opacity:1;}
+
+  .config-banner{
+    background:#3a2a10;
+    border:1px solid #6b4a1a;
+    color:#ffd58a;
+    font-size:12.5px;
+    padding:10px 14px;
+    border-radius:10px;
+    margin-top:10px;
+    line-height:1.5;
+  }
+  .config-banner code{background:rgba(0,0,0,.25);padding:1px 5px;border-radius:4px;}
+
+  .badge-row{display:flex;gap:4px;margin-top:2px;}
+  .badge{
+    font-size:10px;
+    padding:1px 6px;
+    border-radius:999px;
+    border:1px solid var(--border);
+    color:var(--text-dim);
+    white-space:nowrap;
+  }
+  .badge.src-spotify{color:#1DB954;border-color:#1DB95455;}
+  .badge.src-itunes{color:#ff7cb0;border-color:#ff7cb055;}
+  .badge.type-album{color:var(--accent);border-color:var(--accent);}
+  .badge.type-single{color:#ffb84d;border-color:#ffb84d55;}
+  .badge.type-compilation{color:var(--text-dim);}
+
+  .manual-toggle{margin-top:10px;text-align:center;}
+  .manual-toggle button{
+    background:none;border:none;color:var(--text-dim);
+    font-size:12.5px;cursor:pointer;text-decoration:underline;padding:6px;
+  }
+  .manual-form{
+    display:none;
+    flex-direction:column;
+    gap:8px;
+    margin-top:10px;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:14px;
+  }
+  .manual-form input, .manual-form select{
+    width:100%;
+    padding:10px 12px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--bg);
+    color:var(--text);
+    font-size:13px;
+  }
+  .manual-form .row{display:flex;gap:8px;}
+
+  .artist-result-list{
+    max-height:340px;
+    overflow-y:auto;
+    display:flex;
+    flex-direction:column;
+    border:1px solid var(--border);
+    border-radius:10px;
+  }
+  .artist-result-item{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:8px 10px;
+    border-bottom:1px solid var(--border);
+    cursor:pointer;
+  }
+  .artist-result-item:last-child{border-bottom:none;}
+  .artist-result-item:hover{background:var(--card-hover);}
+  .artist-result-item.dup{opacity:.45;cursor:not-allowed;}
+  .artist-result-item input[type="checkbox"]{width:auto;flex-shrink:0;accent-color:var(--accent);}
+  .artist-result-item img{width:36px;height:36px;border-radius:8px;background:#333;flex-shrink:0;}
+  .artist-result-text{min-width:0;flex:1;}
+  .artist-result-title{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .artist-result-sub{font-size:11px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .artist-toolbar{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-dim);}
+  .artist-toolbar button{background:none;border:none;color:var(--accent);font-size:12px;cursor:pointer;text-decoration:underline;padding:2px;}
+
+  .bulk-bar{
+    display:none;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:10px 12px;
+    margin-top:8px;
+    font-size:12.5px;
+  }
+  .bulk-bar.show{display:flex;}
+  .bulk-bar select{padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:12.5px;}
+  .bulk-bar button{padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:12.5px;cursor:pointer;}
+  .bulk-bar button.primary{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600;}
+  #bulkModeBtn.active{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600;}
+  .song-card .bulk-check{width:auto;flex-shrink:0;accent-color:var(--accent);}
+
+  .mylink-banner{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:10px 14px;
+    margin-top:10px;
+    font-size:12.5px;
+    color:var(--text-dim);
+    line-height:1.5;
+  }
+  .mylink-banner strong{color:var(--text);}
+  .mylink-banner li{margin-bottom:6px;}
+  .mylink-banner li:last-child{margin-bottom:0;}
+  .match-suggest-card{border:1.5px solid var(--accent);}
+  .match-suggest-thumb{width:52px;height:52px;border-radius:8px;object-fit:cover;flex-shrink:0;background:var(--bg);}
+  .mylink-row{
+    display:flex;
+    gap:6px;
+    margin-top:6px;
+  }
+  .mylink-row input{
+    flex:1;
+    min-width:0;
+    padding:8px 10px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--bg);
+    color:var(--text-dim);
+    font-size:11.5px;
+  }
+  .mylink-row button{
+    padding:8px 12px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--bg);
+    color:var(--text);
+    font-size:12px;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+
+  .login-box{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:12px 14px;
+    margin-top:10px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .login-box .hint{font-size:12px;color:var(--text-dim);}
+  .login-status{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:13px;
+  }
+  .login-status img{width:28px;height:28px;border-radius:50%;}
+  .logout-btn{
+    background:none;
+    border:1px solid var(--border);
+    color:var(--text-dim);
+    padding:6px 10px;
+    border-radius:8px;
+    font-size:12px;
+    cursor:pointer;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎵 내 인생 플레이리스트</h1>
+  <p>제목이나 가수, 앨범명을 입력하면 자동으로 정보를 채워드려요</p>
+</header>
+
+<div class="wrap">
+
+  <div id="inAppBrowserBanner" class="mylink-banner" style="display:none;border:1.5px solid var(--danger);">
+    <div style="font-weight:700;margin-bottom:6px;">⚠️ <span id="inAppBrowserName"></span> 안의 브라우저에서는 구글 로그인이 안 될 수 있어요</div>
+    <div style="margin-bottom:8px;">구글 정책상 카카오톡·인스타그램 등 앱 안에서 열리는 브라우저에서는 로그인 창이 아예 안 뜨거나 막힐 수 있어요. 화면의 메뉴(⋮ 또는 공유 아이콘)에서 <strong>"다른 브라우저로 열기"</strong>를 눌러 Chrome이나 Safari로 열면 로그인이 정상적으로 돼요. (로그인 없이 이 화면 그대로 써도 곡을 보고 추가하는 건 가능해요)</div>
+    <div class="edit-actions">
+      <button id="copyLinkBtn" class="save-btn" type="button" style="margin-top:0;">🔗 이 링크 복사하기</button>
+    </div>
+  </div>
+
+  <div class="manual-toggle" style="margin-top:0;">
+    <button id="infoToggleBtn" type="button">ℹ️ 사용 안내</button>
+  </div>
+  <div id="infoPanel" class="mylink-banner" style="display:none;">
+    <ul style="margin:0;padding-left:18px;">
+      <li>로그인해야 모든 기기에서 같은 목록을 볼 수 있어요. 로그인하지 않으면 이 기기에서만 보여요.</li>
+      <li>제목이나 가수 이름을 일부만 입력해도 자동으로 추천해드려요.</li>
+      <li>약간의 오타나 띄어쓰기 차이는 자동으로 보정하지만, 너무 큰 오타는 못 잡을 수 있어요.</li>
+      <li>음원으로 등록되지 않은 곡은 유튜브 링크로도 등록할 수 있어요. 원본 영상이 삭제되거나 비공개로 전환되면 목록에서 자동으로 정리돼요.</li>
+      <li>국내 곡은 최대한 한글 제목으로 표시되도록 하지만, 음원 등록 정보에 따라 영어로 나올 수도 있어요.</li>
+    </ul>
+  </div>
+
+  <div id="loginBox" class="login-box" style="display:none;">
+    <div id="loginPrompt" class="hint">Google로 로그인하면 어떤 기기에서든 같은 목록을 이어볼 수 있어요. 로그인하지 않으면 이 브라우저에서만 목록이 보여요.</div>
+    <button id="googleSignInBtn" class="logout-btn" type="button">Google로 로그인</button>
+    <div id="loginStatusRow" class="login-status" style="display:none;">
+      <img id="loginAvatar" src="" alt="" />
+      <span id="loginStatus"></span>
+      <button id="logoutBtn" class="logout-btn" type="button">로그아웃</button>
+    </div>
+  </div>
+
+  <div class="search-box">
+    <input id="searchInput" type="text" placeholder="예: dancing queen, abba..." autocomplete="off" />
+    <div id="suggestions" class="suggestions"></div>
+  </div>
+
+  <div id="configBanner" class="config-banner" style="display:none;">
+    ⚠️ 아직 Supabase 연동이 설정되지 않았어요. 이 파일 하단의
+    <code>CONFIG.SUPABASE_URL</code> / <code>CONFIG.SUPABASE_ANON_KEY</code> 값을 채워주세요.
+    (SETUP_GUIDE_SUPABASE.md 참고)
+  </div>
+
+  <div class="manual-toggle">
+    <button id="manualToggleBtn" type="button">✏️ 검색 결과에 없나요? 직접 입력하기</button>
+    <button id="youtubeToggleBtn" type="button">▶ 유튜브 링크로 추가하기</button>
+    <button id="artistToggleBtn" type="button">🎤 가수 곡 여러 개 한번에 추가하기</button>
+  </div>
+  <div id="manualForm" class="manual-form">
+    <input id="manualTitle" type="text" placeholder="제목 *" />
+    <input id="manualArtist" type="text" placeholder="아티스트 *" />
+    <div class="row">
+      <input id="manualAlbum" type="text" placeholder="앨범명" />
+      <input id="manualYear" type="text" placeholder="발매년도 (예: 2020)" />
+    </div>
+    <div class="row">
+      <input id="manualGenre" type="text" placeholder="장르 (선택)" />
+      <input id="manualArtwork" type="text" placeholder="앨범아트 이미지 URL (선택)" />
+    </div>
+    <div class="row">
+      <input id="manualMemo" type="text" placeholder="메모 (선택)" />
+      <select id="manualRating">
+        <option value="">평점</option>
+        <option value="5">★★★★★</option>
+        <option value="4">★★★★☆</option>
+        <option value="3">★★★☆☆</option>
+        <option value="2">★★☆☆☆</option>
+        <option value="1">★☆☆☆☆</option>
+      </select>
+    </div>
+    <select id="manualNationality">
+      <option value="">국내/해외 (선택)</option>
+      <option value="domestic">국내</option>
+      <option value="international">해외</option>
+    </select>
+    <div id="manualCountryWrap" style="display:none;">
+      <select id="manualCountry">
+        <option value="">국가 선택 (선택)</option>
+        <option value="일본">일본</option>
+        <option value="미국">미국</option>
+        <option value="영국">영국</option>
+        <option value="중국">중국</option>
+        <option value="__custom">기타(직접입력)</option>
+      </select>
+      <input id="manualCountryCustom" type="text" placeholder="국가명 직접 입력" style="display:none;margin-top:8px;" />
+    </div>
+    <button id="manualSaveBtn" class="save-btn">직접 입력한 곡 추가</button>
+  </div>
+
+  <div id="youtubeForm" class="manual-form">
+    <div class="hint" style="font-size:12px;color:var(--text-dim);">
+      영상을 다운로드하지 않고, 유튜브 공식 정보만 가져와서 제목/아티스트를 추천해드려요. 재생은 유튜브 플레이어로 앱 안에서 바로 할 수 있어요.
+    </div>
+    <div class="row">
+      <input id="ytUrlInput" type="text" placeholder="유튜브 영상 링크 붙여넣기" />
+      <button id="ytFetchBtn" class="logout-btn" type="button" style="flex:0 0 auto;">정보 가져오기</button>
+    </div>
+    <div id="ytPreviewRow" style="display:none;gap:10px;align-items:center;">
+      <img id="ytPreviewImg" src="" alt="" style="width:64px;height:36px;object-fit:cover;border-radius:6px;background:#333;flex-shrink:0;" />
+      <div style="font-size:12px;color:var(--text-dim);min-width:0;">원본 제목: <span id="ytRawTitle"></span></div>
+    </div>
+    <input id="ytTitle" type="text" placeholder="제목 * (자동 추천되며, 틀리면 고쳐주세요)" />
+    <input id="ytArtist" type="text" placeholder="아티스트 * (자동 추천되며, 틀리면 고쳐주세요)" />
+    <div class="row">
+      <input id="ytAlbum" type="text" placeholder="앨범명 (선택)" />
+      <input id="ytYear" type="text" placeholder="발매년도 (선택)" />
+    </div>
+    <div class="row">
+      <input id="ytMemo" type="text" placeholder="메모 (선택)" />
+      <select id="ytRating">
+        <option value="">평점</option>
+        <option value="5">★★★★★</option>
+        <option value="4">★★★★☆</option>
+        <option value="3">★★★☆☆</option>
+        <option value="2">★★☆☆☆</option>
+        <option value="1">★☆☆☆☆</option>
+      </select>
+    </div>
+    <select id="ytNationality">
+      <option value="">국내/해외 (선택)</option>
+      <option value="domestic">국내</option>
+      <option value="international">해외</option>
+    </select>
+    <div id="ytCountryWrap" style="display:none;">
+      <select id="ytCountry">
+        <option value="">국가 선택 (선택)</option>
+        <option value="일본">일본</option>
+        <option value="미국">미국</option>
+        <option value="영국">영국</option>
+        <option value="중국">중국</option>
+        <option value="__custom">기타(직접입력)</option>
+      </select>
+      <input id="ytCountryCustom" type="text" placeholder="국가명 직접 입력" style="display:none;margin-top:8px;" />
+    </div>
+    <button id="ytSaveBtn" class="save-btn" type="button">유튜브 곡으로 추가</button>
+  </div>
+
+  <div id="artistForm" class="manual-form">
+    <div class="hint" style="font-size:12px;color:var(--text-dim);">
+      가수 이름으로 검색하면 그 가수의 곡들이 쭉 나와요. 원하는 곡들만 체크해서 한 번에 추가할 수 있어요.
+      (이미 플레이리스트에 있는 곡은 자동으로 표시되고 선택할 수 없어요)
+    </div>
+    <div class="row">
+      <input id="artistSearchInput" type="text" placeholder="가수 이름 (예: 아이유, IU)" />
+      <button id="artistSearchBtn" class="logout-btn" type="button" style="flex:0 0 auto;">검색</button>
+    </div>
+    <div id="artistResultsList" class="artist-result-list" style="display:none;"></div>
+    <div id="artistToolbar" class="artist-toolbar" style="display:none;">
+      <span id="artistSelectedCount">0곡 선택됨</span>
+      <button type="button" id="artistSelectAllBtn">전체 선택</button>
+    </div>
+    <select id="artistBulkRating">
+      <option value="">평점 (선택, 추가되는 곡 전체에 동일하게 적용돼요)</option>
+      <option value="5">★★★★★</option>
+      <option value="4">★★★★☆</option>
+      <option value="3">★★★☆☆</option>
+      <option value="2">★★☆☆☆</option>
+      <option value="1">★☆☆☆☆</option>
+    </select>
+    <button id="artistAddSelectedBtn" class="save-btn" type="button" disabled>선택한 곡 추가하기 (0)</button>
+  </div>
+
+  <div id="previewCard" class="preview-card">
+    <img id="previewImg" src="" alt="" />
+    <div class="preview-info" style="flex:1;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="t" id="previewTitle" style="flex:1;min-width:0;"></div>
+        <button id="previewPlayBtn" class="preview-btn" type="button" data-url="" title="미리듣기">▶ 미리듣기</button>
+      </div>
+      <div class="s" id="previewSub"></div>
+      <div class="preview-extra">
+        <input id="memoInput" type="text" placeholder="메모 (선택, 예: 첫 소개팅 때 들었던 노래)" />
+        <select id="ratingInput">
+          <option value="">평점</option>
+          <option value="5">★★★★★</option>
+          <option value="4">★★★★☆</option>
+          <option value="3">★★★☆☆</option>
+          <option value="2">★★☆☆☆</option>
+          <option value="1">★☆☆☆☆</option>
+        </select>
+      </div>
+      <select id="nationalityInput" style="width:100%;margin-top:8px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
+        <option value="">국내/해외 (자동 추정됨, 다르면 바꿔주세요)</option>
+        <option value="domestic">국내</option>
+        <option value="international">해외</option>
+      </select>
+      <div id="countryFieldWrap" style="display:none;margin-top:8px;">
+        <select id="countryInput" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
+          <option value="">국가 선택 (선택)</option>
+          <option value="일본">일본</option>
+          <option value="미국">미국</option>
+          <option value="영국">영국</option>
+          <option value="중국">중국</option>
+          <option value="__custom">기타(직접입력)</option>
+        </select>
+        <input id="countryCustomInput" type="text" placeholder="국가명 직접 입력" style="display:none;width:100%;margin-top:6px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;" />
+      </div>
+      <button id="saveBtn" class="save-btn">플레이리스트에 추가</button>
+    </div>
+  </div>
+
+  <div class="search-box" style="margin-top:20px;">
+    <input id="librarySearchInput" type="text" placeholder="🔍 내가 모은 곡 검색 (제목·가수·앨범·메모)" autocomplete="off" />
+  </div>
+
+  <div class="filter-tabs" id="filterTabs">
+    <button type="button" class="filter-tab active" data-filter="all">전체</button>
+    <button type="button" class="filter-tab" data-filter="domestic">국내</button>
+    <button type="button" class="filter-tab" data-filter="international">해외</button>
+  </div>
+  <select id="countryFilterSelect" style="display:none;margin-top:8px;width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:12.5px;">
+    <option value="">해외 전체</option>
+  </select>
+
+  <div class="filter-tabs" id="ratingTabs" style="margin-top:8px;flex-wrap:wrap;">
+    <button type="button" class="filter-tab active" data-rating="0">평점 전체</button>
+    <button type="button" class="filter-tab" data-rating="5">★5</button>
+    <button type="button" class="filter-tab" data-rating="4">★4+</button>
+    <button type="button" class="filter-tab" data-rating="3">★3+</button>
+    <button type="button" class="filter-tab" data-rating="2">★2+</button>
+    <button type="button" class="filter-tab" data-rating="1">★1+</button>
+  </div>
+
+  <select id="sortSelect" style="margin-top:8px;width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:12.5px;">
+    <option value="addedDesc">정렬: 최근 추가순</option>
+    <option value="addedAsc">정렬: 오래된 추가순</option>
+    <option value="titleAsc">정렬: 제목 오름차순</option>
+    <option value="titleDesc">정렬: 제목 내림차순</option>
+    <option value="artistAsc">정렬: 가수 오름차순</option>
+    <option value="artistDesc">정렬: 가수 내림차순</option>
+    <option value="yearAsc">정렬: 발매년도 오래된순</option>
+    <option value="yearDesc">정렬: 발매년도 최신순</option>
+  </select>
+
+  <div id="editForm" class="manual-form">
+    <div class="hint" style="font-size:12px;color:var(--text-dim);margin-bottom:2px;">곡 수정</div>
+    <input id="editTitle" type="text" placeholder="제목 *" />
+    <input id="editArtist" type="text" placeholder="아티스트 *" />
+    <div class="row">
+      <input id="editAlbum" type="text" placeholder="앨범명" />
+      <input id="editYear" type="text" placeholder="발매년도 (예: 2020)" />
+    </div>
+    <div class="row">
+      <input id="editMemo" type="text" placeholder="메모 (선택)" />
+      <select id="editRating">
+        <option value="">평점</option>
+        <option value="5">★★★★★</option>
+        <option value="4">★★★★☆</option>
+        <option value="3">★★★☆☆</option>
+        <option value="2">★★☆☆☆</option>
+        <option value="1">★☆☆☆☆</option>
+      </select>
+    </div>
+    <select id="editNationality">
+      <option value="">국내/해외 (선택)</option>
+      <option value="domestic">국내</option>
+      <option value="international">해외</option>
+    </select>
+    <div id="editCountryWrap" style="display:none;">
+      <select id="editCountry">
+        <option value="">국가 선택 (선택)</option>
+        <option value="일본">일본</option>
+        <option value="미국">미국</option>
+        <option value="영국">영국</option>
+        <option value="중국">중국</option>
+        <option value="__custom">기타(직접입력)</option>
+      </select>
+      <input id="editCountryCustom" type="text" placeholder="국가명 직접 입력" style="display:none;margin-top:8px;" />
+    </div>
+    <input id="editYoutubeUrl" type="text" placeholder="유튜브 링크 (선택, 없으면 비워두세요)" />
+    <div class="edit-actions">
+      <button id="editSaveBtn" class="save-btn" type="button">수정 저장</button>
+      <button id="editCancelBtn" class="logout-btn" type="button">취소</button>
+    </div>
+  </div>
+
+  <div id="matchSuggestCard" class="mylink-banner match-suggest-card" style="display:none;">
+    <div style="font-weight:700;color:var(--text);margin-bottom:8px;">🔍 찾으시던 곡이 아닐까요?</div>
+    <div id="matchSuggestTarget" style="font-size:12px;margin-bottom:8px;"></div>
+    <div id="matchSuggestBody" style="display:flex;gap:10px;align-items:center;margin-bottom:10px;"></div>
+    <div class="edit-actions">
+      <button id="matchSuggestAcceptBtn" class="save-btn" type="button">이 곡으로 교체하기</button>
+      <button id="matchSuggestDismissBtn" class="logout-btn" type="button">아니에요, 그대로 둘게요</button>
+    </div>
+  </div>
+
+  <div class="list-header">
+    <h2>내가 모은 곡들</h2>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div class="density-tabs" id="densityTabs">
+        <button type="button" class="density-tab" data-density="large" title="크게">큼</button>
+        <button type="button" class="density-tab active" data-density="medium" title="중간">중간</button>
+        <button type="button" class="density-tab" data-density="small" title="작게">작음</button>
+      </div>
+      <button type="button" class="density-tab" id="bulkModeBtn" title="여러 곡을 선택해서 평점을 한번에 바꿀 수 있어요">☑️ 선택</button>
+      <span class="count-pill" id="countPill">0곡</span>
+    </div>
+  </div>
+
+  <div id="bulkBar" class="bulk-bar">
+    <span id="bulkCountLabel">0곡 선택됨</span>
+    <select id="bulkRatingSelect">
+      <option value="">적용할 평점 선택</option>
+      <option value="5">★★★★★</option>
+      <option value="4">★★★★☆</option>
+      <option value="3">★★★☆☆</option>
+      <option value="2">★★☆☆☆</option>
+      <option value="1">★☆☆☆☆</option>
+      <option value="__clear">평점 없음으로</option>
+    </select>
+    <button type="button" id="bulkApplyRatingBtn" class="primary">선택한 곡에 적용</button>
+    <button type="button" id="bulkSelectAllBtn">전체 선택</button>
+    <button type="button" id="bulkCancelBtn">선택 취소</button>
+  </div>
+
+  <div id="songList" class="song-list"></div>
+  <div id="emptyState" class="empty-state" style="display:none;">
+    아직 추가한 곡이 없어요. 위 검색창에서 노래를 찾아 추가해보세요!
+  </div>
+
+</div>
+
+<div id="toast" class="toast"></div>
+
+<div id="ytPlayerOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:100;align-items:center;justify-content:center;padding:20px;">
+  <div style="width:100%;max-width:480px;">
+    <div style="position:relative;padding-top:56.25%;background:#000;border-radius:10px;overflow:hidden;">
+      <iframe id="ytPlayerFrame" src="" title="유튜브 재생" allow="autoplay; encrypted-media" allowfullscreen style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;"></iframe>
+    </div>
+    <button id="ytPlayerCloseBtn" type="button" class="logout-btn" style="width:100%;margin-top:10px;padding:10px;">닫기</button>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   설정: Google Apps Script 배포 후 발급받은 웹앱 URL을 아래에 넣으세요.
+   SETUP_GUIDE.md 의 안내를 따라 배포하면
+   https://script.google.com/macros/s/xxxxxxxx/exec 형태의 주소를 받게 됩니다.
+   ============================================================ */
+const CONFIG = {
+  // Supabase 프로젝트 설정 화면(Project Settings → API)에서 확인할 수 있는 값들.
+  // SETUP_GUIDE_SUPABASE.md 안내대로 프로젝트를 만든 뒤 이 두 값만 채우면 돼요.
+  SUPABASE_URL: 'https://iabfwnobtsdmdkybhsyr.supabase.co',
+  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlhYmZ3bm9idHNkbWRreWJoc3lyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwNTYzODAsImV4cCI6MjEwMjYzMjM4MH0.yEeWrGuSugrwgukqbbOkyFEaQ4fpC-hAEJTmsalVw54' // anon/public 키 (비밀값 아님, 브라우저에 노출돼도 안전. RLS가 실제 접근 제어를 함)
+};
+
+const isConfigured = CONFIG.SUPABASE_URL.startsWith('http')
+  && CONFIG.SUPABASE_URL.indexOf('YOUR_PROJECT_REF') === -1
+  && !!CONFIG.SUPABASE_ANON_KEY
+  && CONFIG.SUPABASE_ANON_KEY.indexOf('YOUR_') !== 0;
+document.getElementById('configBanner').style.display = isConfigured ? 'none' : 'block';
+
+const supabaseClient = isConfigured
+  ? supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY)
+  : null;
+
+function edgeFunctionUrl(name) {
+  return CONFIG.SUPABASE_URL + '/functions/v1/' + name;
+}
+function edgeFunctionHeaders() {
+  // Edge Function도 익명/anon 키로 접근 가능하게 배포함 (공개 프록시라 사용자별 인가가 필요 없음)
+  return { apikey: CONFIG.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CONFIG.SUPABASE_ANON_KEY };
+}
+
+// ---------- 카카오톡 등 인앱 브라우저 감지 ----------
+// 구글 정책상 카카오톡/인스타그램 등 앱 내장 브라우저(WebView)에서는 구글 로그인 창이 아예 뜨지 않거나 막힘.
+// 우리 쪽에서 고칠 수 있는 문제가 아니라서, 감지되면 "다른 브라우저로 열어달라"고 미리 안내함.
+function detectInAppBrowser() {
+  const ua = navigator.userAgent || '';
+  if (/KAKAOTALK/i.test(ua)) return '카카오톡';
+  if (/FBAN|FBAV|FB_IAB/i.test(ua)) return '페이스북';
+  if (/Instagram/i.test(ua)) return '인스타그램';
+  if (/Line\//i.test(ua)) return '라인';
+  if (/NAVER\(inapp/i.test(ua)) return '네이버 앱';
+  if (/Twitter|X\)/i.test(ua) && / Mobile\//.test(ua)) return '트위터(X)';
+  return '';
+}
+const inAppBrowserName = detectInAppBrowser();
+if (inAppBrowserName) {
+  document.getElementById('inAppBrowserName').textContent = inAppBrowserName;
+  document.getElementById('inAppBrowserBanner').style.display = 'block';
+}
+document.getElementById('copyLinkBtn').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(location.href);
+    toast('링크를 복사했어요. Chrome이나 Safari에 붙여넣어 열어주세요 📋');
+  } catch (err) {
+    toast('복사에 실패했어요. 주소창을 길게 눌러 직접 복사해주세요.');
+  }
+});
+
+// ---------- Supabase 인증: 익명 세션 + 구글 로그인(계정 연결) ----------
+// 접속하자마자 이 브라우저 전용 "익명 세션"을 하나 만들어서(로그인 없이도) 바로 곡을 담을 수 있게 하고,
+// 나중에 구글로 로그인하면 그 익명 세션에 구글 계정을 "연결(link)"해서 같은 사용자 id를 그대로 유지함.
+// → 예전처럼 "이 기기의 곡을 로그인 계정으로 합치기"를 따로 할 필요가 전혀 없어짐(자동으로 이어짐).
+// 다만 이미 다른 기기에서 같은 구글 계정으로 로그인한 적이 있으면(그 계정이 이미 다른 사용자 id에 연결돼 있으면)
+// 연결이 아니라 "그 기존 계정으로 로그인"으로 자동 전환됨 — 이 경우 지금 이 브라우저에서 로그인 전에 담아둔 곡은
+// (기존 방식과 마찬가지로) 새로 로그인되는 기존 계정 목록에는 합쳐지지 않고, 기존 계정의 목록이 보이게 됨.
+let currentUser = null;
+
+async function ensureSession() {
+  if (!isConfigured) return null;
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (session) return session;
+  const { data, error } = await supabaseClient.auth.signInAnonymously();
+  if (error) {
+    console.error('익명 세션 생성 실패', error);
+    return null;
+  }
+  return data.session;
+}
+
+function applyAuthUser(user) {
+  currentUser = user || null;
+  const loggedIn = !!(user && user.email); // 익명 사용자는 email이 없음
+  document.getElementById('loginPrompt').style.display = loggedIn ? 'none' : '';
+  document.getElementById('googleSignInBtn').style.display = loggedIn ? 'none' : '';
+  document.getElementById('loginStatusRow').style.display = loggedIn ? 'flex' : 'none';
+  if (loggedIn) {
+    const meta = user.user_metadata || {};
+    document.getElementById('loginAvatar').src = meta.avatar_url || meta.picture || '';
+    document.getElementById('loginStatus').textContent = (meta.full_name || meta.name || user.email) + '님으로 로그인됨';
+  }
+  loadSongs();
+}
+
+document.getElementById('googleSignInBtn').addEventListener('click', async () => {
+  if (!isConfigured) { toast('먼저 Supabase 설정을 완료해주세요'); return; }
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const isAnon = session && session.user && !session.user.email;
+    const { error } = isAnon
+      // 지금 이 브라우저에 담긴 곡을 그대로 유지한 채 구글 계정을 연결(첫 로그인일 때 이 경로를 탐)
+      ? await supabaseClient.auth.linkIdentity({ provider: 'google', options: { redirectTo: location.href } })
+      // 이미 로그인된 상태(드물게)면 그냥 새로 로그인
+      : await supabaseClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href } });
+    if (error) throw error;
+    // 성공하면 구글 로그인 화면으로 이동했다가 돌아오면서 페이지가 새로고침됨 (아래 initAuth가 다시 실행됨)
+  } catch (err) {
+    toast('구글 로그인을 시작하지 못했어요: ' + err.message);
+  }
+});
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await supabaseClient.auth.signOut();
+  await ensureSession(); // 로그아웃 후에도 이 브라우저에서 계속 쓸 수 있게 새 익명 세션을 바로 만듦
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  toast('로그아웃했어요');
+  applyAuthUser(user);
+});
+
+async function initAuth() {
+  if (!isConfigured) return;
+  document.getElementById('loginBox').style.display = 'flex';
+
+  // 구글 계정 "연결"이 실패해서(그 구글 계정이 이미 다른 사용자에게 연결돼 있는 경우 등) 에러와 함께 돌아온 경우,
+  // 연결 대신 "그 기존 계정으로 로그인"으로 자동 전환해줌.
+  const url = new URL(location.href);
+  const hashParams = new URLSearchParams((url.hash || '').replace(/^#/, ''));
+  const errCode = url.searchParams.get('error_code') || hashParams.get('error_code') || '';
+  const errDesc = url.searchParams.get('error_description') || hashParams.get('error_description') || '';
+  if (errCode || errDesc) history.replaceState(null, '', url.pathname); // 에러 파라미터가 남아있지 않게 주소 정리
+
+  await ensureSession();
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  applyAuthUser(user);
+
+  if (/already|exist|associat/i.test(errCode + ' ' + errDesc)) {
+    toast('이 구글 계정은 이미 다른 기기에서 로그인한 적이 있어요. 그 계정으로 로그인할게요.');
+    const { error } = await supabaseClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href } });
+    if (error) toast('로그인에 실패했어요: ' + error.message);
+    return;
+  }
+
+  supabaseClient.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_IN' && session && session.user && session.user.email && (!currentUser || currentUser.id !== session.user.id)) {
+      toast('구글 계정으로 로그인했어요');
+    }
+    applyAuthUser(session ? session.user : null);
+  });
+}
+window.addEventListener('load', initAuth);
+
+// ---------- iTunes Search 자동완성 (JSONP 방식, CORS 이슈 없음) ----------
+let jsonpCounter = 0;
+function jsonp(url) {
+  return new Promise((resolve, reject) => {
+    const cbName = 'itunesCb_' + (jsonpCounter++);
+    const script = document.createElement('script');
+    window[cbName] = (data) => {
+      resolve(data);
+      delete window[cbName];
+      script.remove();
+    };
+    script.onerror = () => { reject(new Error('iTunes 검색 실패')); script.remove(); };
+    script.src = url + '&callback=' + cbName;
+    document.body.appendChild(script);
+  });
+}
+
+// iTunes 결과를 공통 형태로 정규화
+async function searchItunes(term) {
+  // country=KR: 한국 스토어 기준으로 검색해서 제목/가수명이 영어보다 한글로 나올 확률을 높임
+  const url = 'https://itunes.apple.com/search?media=music&entity=song&limit=15&country=KR&lang=ko_kr&term=' + encodeURIComponent(term);
+  const data = await jsonp(url);
+  return (data.results || []).map(r => ({
+    source: 'itunes',
+    title: r.trackName || '',
+    artist: r.artistName || '',
+    album: r.collectionName || '',
+    releaseDate: r.releaseDate ? r.releaseDate.slice(0, 10) : '',
+    genre: r.primaryGenreName || '',
+    artworkUrl: (r.artworkUrl100 || '').replace('100x100', '300x300'),
+    externalUrl: r.trackViewUrl || '',
+    previewUrl: r.previewUrl || '', // 30초 미리듣기 mp3
+    albumType: '' // iTunes API는 앨범 타입을 명시적으로 안 줘서 아래 휴리스틱으로 추정
+  }));
+}
+
+// 스포티파이는 Supabase Edge Function을 통해 프록시로 검색 (Client Secret 보호 + CORS 회피)
+// Spotify Client ID/Secret이 설정 안 되어 있으면 서버가 빈 목록을 주므로 그냥 iTunes 결과만 쓰게 됨
+async function searchSpotify(term) {
+  if (!isConfigured) return [];
+  const url = edgeFunctionUrl('spotify-search') + '?term=' + encodeURIComponent(term);
+  const res = await fetch(url, { headers: edgeFunctionHeaders() });
+  const data = await res.json();
+  if (!data.success) return [];
+  return (data.items || []).map(item => Object.assign({ source: 'spotify' }, item));
+}
+
+async function searchAll(term) {
+  // 띄어쓰기 유무 때문에 검색이 안 되는 경우(예: "내사랑내곁에" ↔ "내 사랑 내 곁에")를 줄이기 위해
+  // 원래 검색어와 띄어쓰기를 뺀 검색어를 함께 조회해서 합칩니다.
+  const altTerm = term.replace(/\s+/g, '');
+  const terms = altTerm && altTerm !== term ? [term, altTerm] : [term];
+  const resultSets = await Promise.all(
+    terms.flatMap(t => [searchItunes(t).catch(() => []), searchSpotify(t).catch(() => [])])
+  );
+  const merged = dedupeResults(resultSets.flat());
+  return rankByRelevance(merged, term).slice(0, 12);
+}
+
+// ---------- 가수 이름으로 그 가수의 곡을 여러 개 한번에 찾기 (일반 검색과 다르게 결과를 최대한 많이, 가수 한정으로) ----------
+// iTunes는 attribute=artistTerm으로 "이 가수 이름"에 한정해서 검색할 수 있고,
+// 스포티파이는 검색어 자체에 artist: 필터를 붙이면 같은 효과를 냄(Edge Function 코드 변경 없이 재사용 가능).
+async function searchItunesByArtist(artistName) {
+  const url = 'https://itunes.apple.com/search?media=music&entity=song&attribute=artistTerm&limit=50&country=KR&lang=ko_kr&term=' + encodeURIComponent(artistName);
+  const data = await jsonp(url);
+  return (data.results || []).map(r => ({
+    source: 'itunes',
+    title: r.trackName || '',
+    artist: r.artistName || '',
+    album: r.collectionName || '',
+    releaseDate: r.releaseDate ? r.releaseDate.slice(0, 10) : '',
+    genre: r.primaryGenreName || '',
+    artworkUrl: (r.artworkUrl100 || '').replace('100x100', '300x300'),
+    externalUrl: r.trackViewUrl || '',
+    previewUrl: r.previewUrl || '',
+    albumType: ''
+  }));
+}
+
+async function searchSpotifyByArtist(artistName) {
+  if (!isConfigured) return [];
+  const url = edgeFunctionUrl('spotify-search') + '?term=' + encodeURIComponent('artist:' + artistName);
+  const res = await fetch(url, { headers: edgeFunctionHeaders() });
+  const data = await res.json();
+  if (!data.success) return [];
+  return (data.items || []).map(item => Object.assign({ source: 'spotify' }, item));
+}
+
+async function searchArtistAll(artistName) {
+  const [itunesResults, spotifyResults] = await Promise.all([
+    searchItunesByArtist(artistName).catch(() => []),
+    searchSpotifyByArtist(artistName).catch(() => [])
+  ]);
+  const merged = dedupeResults([...itunesResults, ...spotifyResults]);
+  // 정규앨범 우선, 그다음 발매년도 오래된순으로 정렬해서 디스코그래피처럼 보이게 함
+  return merged.sort((a, b) => {
+    const prioDiff = priorityScore(a) - priorityScore(b);
+    if (prioDiff !== 0) return prioDiff;
+    const aDate = a.releaseDate ? new Date(a.releaseDate).getTime() : Infinity;
+    const bDate = b.releaseDate ? new Date(b.releaseDate).getTime() : Infinity;
+    return aDate - bDate;
+  });
+}
+
+// 같은 곡이 여러 검색(원문/띄어쓰기 제거, iTunes/Spotify)에서 중복으로 나오는 걸 제목+가수 기준으로 제거
+function dedupeResults(results) {
+  const seen = new Set();
+  const out = [];
+  results.forEach(r => {
+    const key = normalizeForMatch(r.title) + '|' + normalizeForMatch(r.artist);
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(r);
+  });
+  return out;
+}
+
+// 앨범명에 이런 표현이 들어있으면 정규앨범이 아닌 편집반(베스트/컴필레이션/라이브 등)일 가능성이 높음
+// (스포티파이처럼 albumType이 명시적으로 있는 경우엔 이 휴리스틱 대신 그 값을 우선 사용)
+const COMPILATION_PATTERNS = [
+  /greatest\s*hits?/i,
+  /best\s*of/i,
+  /very\s*best/i,
+  /anthology/i,
+  /compilation/i,
+  /\bcollection\b/i,
+  /platinum/i,
+  /essentials?/i,
+  /singles?\s*collection/i,
+  /number\s*ones?/i,
+  /icon\s*[:\-]/i,
+  /millennium/i,
+  /ultimate\s*(hits|collection)/i,
+  /\bthe\s*hits\b/i,
+  /remix(es)?/i,
+  /live\s*(at|in|from|version)/i,
+  /unplugged/i,
+  /karaoke/i,
+  /tribute/i,
+  /베스트/,
+  /히트\s*곡/
+];
+
+function isLikelyCompilation(albumName) {
+  const name = albumName || '';
+  return COMPILATION_PATTERNS.some(re => re.test(name));
+}
+
+// 0 = 정규앨범, 1 = 싱글, 2 = 편집반/컴필레이션/라이브 등
+function priorityScore(item) {
+  if (item.albumType === 'album') return 0;
+  if (item.albumType === 'single') return 1;
+  if (item.albumType === 'compilation') return 2;
+  return isLikelyCompilation(item.album) ? 2 : 0;
+}
+
+// ---------- 오타/근사 검색 ----------
+// 검색어와 후보 문자열을 비교할 때 공백/일부 문장부호를 무시하고 소문자로 맞춰서 비교
+function normalizeForMatch(s) {
+  return (s || '').toLowerCase().replace(/[\s'’`\-·.,!?_]/g, '');
+}
+
+// 두 문자열 사이의 편집 거리(오타 몇 글자 차이인지)를 계산
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  const dp = new Array(n + 1);
+  for (let j = 0; j <= n; j++) dp[j] = j;
+  for (let i = 1; i <= m; i++) {
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const tmp = dp[j];
+      dp[j] = Math.min(dp[j] + 1, dp[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = tmp;
+    }
+  }
+  return dp[n];
+}
+
+// 검색어와 결과(제목/가수/앨범)가 얼마나 비슷한지 0~1 사이 값으로 계산.
+// 오타(예: boheimian → bohemian)나 띄어쓰기 차이가 있어도 어느 정도 높은 값이 나오게 함.
+function fuzzyScore(term, item) {
+  const q = normalizeForMatch(term);
+  if (!q) return 0;
+  const candidates = [item.title, item.artist, (item.title || '') + (item.artist || ''), item.album]
+    .map(normalizeForMatch)
+    .filter(Boolean);
+  let best = 0;
+  candidates.forEach(c => {
+    if (c.indexOf(q) !== -1 || q.indexOf(c) !== -1) { best = Math.max(best, 1); return; }
+    const prefix = c.slice(0, q.length + 2);
+    const simFull = 1 - levenshtein(q, c) / Math.max(q.length, c.length);
+    const simPrefix = 1 - levenshtein(q, prefix) / Math.max(q.length, prefix.length, 1);
+    best = Math.max(best, simFull, simPrefix);
+  });
+  return best;
+}
+
+// 유사도를 우선 반영해서 오타가 있어도 근접한 곡이 위로 오게 하되,
+// 유사도가 비슷한 결과들끼리는 기존처럼 정규앨범 우선 정렬을 적용
+function rankByRelevance(results, term) {
+  return results
+    .map(item => ({ item, fuzzy: fuzzyScore(term, item) }))
+    .sort((a, b) => {
+      const fuzzyDiff = b.fuzzy - a.fuzzy;
+      if (Math.abs(fuzzyDiff) > 0.12) return fuzzyDiff;
+      const prioDiff = priorityScore(a.item) - priorityScore(b.item);
+      if (prioDiff !== 0) return prioDiff;
+      const aDate = a.item.releaseDate ? new Date(a.item.releaseDate).getTime() : Infinity;
+      const bDate = b.item.releaseDate ? new Date(b.item.releaseDate).getTime() : Infinity;
+      return aDate - bDate;
+    })
+    .map(s => s.item);
+}
+
+function albumTypeLabel(item) {
+  if (item.albumType === 'album') return '정규';
+  if (item.albumType === 'single') return '싱글';
+  if (item.albumType === 'compilation') return '편집';
+  return isLikelyCompilation(item.album) ? '편집(추정)' : '';
+}
+
+// 국내/해외 자동 추정 (완벽하진 않아서 항상 수정 가능하게 해둠).
+// 한글이 포함되어 있거나 장르에 K-Pop 계열 표기가 있으면 국내로 추정.
+const HANGUL_RE = /[가-힣]/;
+const DOMESTIC_GENRE_RE = /k-?pop|케이팝|k-?indie|k-?hiphop|트로트|발라드/i;
+function guessNationality(item) {
+  const text = [item.title, item.artist, item.genre].filter(Boolean).join(' ');
+  if (HANGUL_RE.test(text)) return 'domestic';
+  if (DOMESTIC_GENRE_RE.test(item.genre || '')) return 'domestic';
+  return 'international';
+}
+
+// ---------- 해외 곡의 국가 세부 선택 (일본/미국/영국/중국/기타 직접입력) ----------
+// 국내/해외 자동 추정과 달리 구체적인 국가는 iTunes/Spotify 메타데이터로 신뢰성 있게 추정할 수 없어서
+// "해외"를 고르면 국가 선택 UI가 나타나고, 값은 사용자가 직접 골라야 함(비워둬도 됨 = "해외"로만 표시).
+const COUNTRY_PRESETS = ['일본', '미국', '영국', '중국'];
+
+function wireCountryField(natId, wrapId, countryId, customId) {
+  const natSel = document.getElementById(natId);
+  const wrap = document.getElementById(wrapId);
+  const countrySel = document.getElementById(countryId);
+  const customInput = document.getElementById(customId);
+  natSel.addEventListener('change', () => {
+    wrap.style.display = natSel.value === 'international' ? 'block' : 'none';
+    if (natSel.value !== 'international') {
+      countrySel.value = '';
+      customInput.value = '';
+      customInput.style.display = 'none';
+    }
+  });
+  countrySel.addEventListener('change', () => {
+    customInput.style.display = countrySel.value === '__custom' ? 'block' : 'none';
+    if (countrySel.value !== '__custom') customInput.value = '';
+  });
+}
+
+function getCountryValue(countryId, customId) {
+  const countrySel = document.getElementById(countryId);
+  if (countrySel.value === '__custom') return document.getElementById(customId).value.trim();
+  return countrySel.value;
+}
+
+function setCountryFieldValue(wrapId, countryId, customId, nationalityValue, countryValue) {
+  const wrap = document.getElementById(wrapId);
+  const countrySel = document.getElementById(countryId);
+  const customInput = document.getElementById(customId);
+  if (nationalityValue === 'international') {
+    wrap.style.display = 'block';
+    if (countryValue && COUNTRY_PRESETS.indexOf(countryValue) !== -1) {
+      countrySel.value = countryValue;
+      customInput.style.display = 'none';
+      customInput.value = '';
+    } else if (countryValue) {
+      countrySel.value = '__custom';
+      customInput.style.display = 'block';
+      customInput.value = countryValue;
+    } else {
+      countrySel.value = '';
+      customInput.style.display = 'none';
+      customInput.value = '';
+    }
+  } else {
+    wrap.style.display = 'none';
+    countrySel.value = '';
+    customInput.style.display = 'none';
+    customInput.value = '';
+  }
+}
+
+wireCountryField('nationalityInput', 'countryFieldWrap', 'countryInput', 'countryCustomInput');
+wireCountryField('manualNationality', 'manualCountryWrap', 'manualCountry', 'manualCountryCustom');
+wireCountryField('editNationality', 'editCountryWrap', 'editCountry', 'editCountryCustom');
+wireCountryField('ytNationality', 'ytCountryWrap', 'ytCountry', 'ytCountryCustom');
+
+const searchInput = document.getElementById('searchInput');
+const suggBox = document.getElementById('suggestions');
+let debounceTimer = null;
+let currentResults = [];
+
+searchInput.addEventListener('input', () => {
+  const term = searchInput.value.trim();
+  clearTimeout(debounceTimer);
+  if (!term) { hideSuggestions(); return; }
+  suggBox.innerHTML = '<div class="sugg-loading">검색 중...</div>';
+  suggBox.classList.add('show');
+  debounceTimer = setTimeout(async () => {
+    try {
+      const results = await searchAll(term);
+      currentResults = results;
+      renderSuggestions(results);
+    } catch (err) {
+      suggBox.innerHTML = '<div class="sugg-empty">검색에 실패했어요. 잠시 후 다시 시도해주세요.</div>';
+    }
+  }, 300);
+});
+
+function renderSuggestions(results) {
+  if (!results.length) {
+    suggBox.innerHTML = '<div class="sugg-empty">검색 결과가 없어요. 아래 "직접 입력하기"로 추가할 수 있어요.</div>';
+    suggBox.classList.add('show');
+    return;
+  }
+  suggBox.innerHTML = results.map((r, i) => {
+    const year = r.releaseDate ? r.releaseDate.slice(0, 4) : '';
+    const srcBadge = r.source === 'spotify'
+      ? '<span class="badge src-spotify">Spotify</span>'
+      : '<span class="badge src-itunes">iTunes</span>';
+    const typeLabel = albumTypeLabel(r);
+    const typeClass = r.albumType === 'album' ? 'type-album' : (r.albumType === 'single' ? 'type-single' : 'type-compilation');
+    const typeBadge = typeLabel ? `<span class="badge ${typeClass}">${typeLabel}</span>` : '';
+    const previewBtn = r.previewUrl
+      ? `<button type="button" class="preview-btn sugg-preview-btn" data-url="${escapeHtml(r.previewUrl)}" title="미리듣기">▶</button>`
+      : '';
+    return `<div class="sugg-item" data-idx="${i}">
+      <img src="${r.artworkUrl || PLACEHOLDER_ART}" loading="lazy" onerror="this.onerror=null;this.src='${PLACEHOLDER_ART}'" />
+      <div class="sugg-text" style="flex:1;">
+        <div class="sugg-title">${escapeHtml(r.title)}</div>
+        <div class="sugg-sub">${escapeHtml(r.artist)} · ${escapeHtml(r.album)} ${year ? '· ' + year : ''}</div>
+        <div class="badge-row">${srcBadge}${typeBadge}</div>
+      </div>
+      ${previewBtn}
+    </div>`;
+  }).join('');
+  suggBox.classList.add('show');
+
+  [...suggBox.querySelectorAll('.sugg-item')].forEach(el => {
+    el.addEventListener('click', () => selectResult(currentResults[+el.dataset.idx]));
+  });
+  [...suggBox.querySelectorAll('.sugg-preview-btn')].forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      togglePreview(btn.dataset.url);
+    });
+  });
+}
+
+function hideSuggestions(){
+  suggBox.classList.remove('show');
+  suggBox.innerHTML = '';
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.search-box')) hideSuggestions();
+});
+
+let selected = null;
+const previewCard = document.getElementById('previewCard');
+
+function selectResult(r) {
+  if (!r) return;
+  selected = {
+    title: r.title || '',
+    artist: r.artist || '',
+    album: r.album || '',
+    releaseDate: r.releaseDate || '',
+    genre: r.genre || '',
+    artworkUrl: r.artworkUrl || '',
+    appleMusicUrl: r.externalUrl || '', // Apple Music 또는 Spotify 링크
+    previewUrl: r.previewUrl || ''
+  };
+  const year = selected.releaseDate ? selected.releaseDate.slice(0,4) : '';
+  document.getElementById('previewImg').src = selected.artworkUrl || PLACEHOLDER_ART;
+  document.getElementById('previewTitle').textContent = selected.title;
+  document.getElementById('previewSub').textContent =
+    [selected.artist, selected.album, year].filter(Boolean).join(' · ');
+  document.getElementById('nationalityInput').value = guessNationality(selected); // 추정값, 틀리면 사용자가 바꿀 수 있음
+  setCountryFieldValue('countryFieldWrap', 'countryInput', 'countryCustomInput', document.getElementById('nationalityInput').value, '');
+  const playBtn = document.getElementById('previewPlayBtn');
+  playBtn.dataset.url = selected.previewUrl || '';
+  playBtn.style.display = selected.previewUrl ? 'inline-block' : 'none';
+  playBtn.textContent = '▶ 미리듣기';
+  previewCard.classList.add('show');
+  hideSuggestions();
+  searchInput.value = selected.title;
+}
+
+// ---------- 30초 미리듣기 ----------
+// 검색 결과/미리보기 카드/저장된 목록 어디서든 재사용하는 오디오 하나만 둬서
+// 동시에 여러 곡이 재생되지 않게 하고, 재생 상태에 맞춰 버튼 아이콘을 갱신함.
+const previewAudio = new Audio();
+let currentPreviewUrl = null;
+
+function setPreviewIcons(url, playing) {
+  document.querySelectorAll('.preview-btn').forEach(btn => {
+    if (btn.dataset.url !== url) return;
+    btn.textContent = btn.id === 'previewPlayBtn'
+      ? (playing ? '⏸ 재생 중' : '▶ 미리듣기')
+      : (playing ? '⏸' : '▶');
+  });
+}
+previewAudio.addEventListener('play', () => setPreviewIcons(currentPreviewUrl, true));
+previewAudio.addEventListener('pause', () => setPreviewIcons(currentPreviewUrl, false));
+previewAudio.addEventListener('ended', () => setPreviewIcons(currentPreviewUrl, false));
+
+function togglePreview(url) {
+  if (!url) { toast('이 곡은 미리듣기를 지원하지 않아요'); return; }
+  if (currentPreviewUrl === url && !previewAudio.paused) {
+    previewAudio.pause();
+    return;
+  }
+  if (currentPreviewUrl && currentPreviewUrl !== url) setPreviewIcons(currentPreviewUrl, false);
+  currentPreviewUrl = url;
+  if (previewAudio.src !== url) previewAudio.src = url;
+  previewAudio.currentTime = 0;
+  previewAudio.play().catch(() => toast('미리듣기를 재생할 수 없어요'));
+}
+
+document.getElementById('previewPlayBtn').addEventListener('click', () => {
+  togglePreview(document.getElementById('previewPlayBtn').dataset.url);
+});
+
+document.getElementById('saveBtn').addEventListener('click', async () => {
+  if (!selected) return;
+  if (!isConfigured) { toast('먼저 Supabase 설정을 완료해주세요'); return; }
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  btn.textContent = '저장 중...';
+  try {
+    const nationalityValue = document.getElementById('nationalityInput').value || guessNationality(selected);
+    const payload = Object.assign({ action: 'add' }, selected, {
+      memo: document.getElementById('memoInput').value.trim(),
+      rating: document.getElementById('ratingInput').value,
+      nationality: nationalityValue,
+      country: nationalityValue === 'international' ? getCountryValue('countryInput', 'countryCustomInput') : '',
+      source: 'search'
+    });
+    await postToSheet(payload);
+    toast('플레이리스트에 추가했어요 🎧');
+    resetForm();
+    loadSongs();
+  } catch (err) {
+    toast('저장에 실패했어요: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '플레이리스트에 추가';
+  }
+});
+
+function resetForm(){
+  selected = null;
+  searchInput.value = '';
+  document.getElementById('memoInput').value = '';
+  document.getElementById('ratingInput').value = '';
+  document.getElementById('nationalityInput').value = '';
+  setCountryFieldValue('countryFieldWrap', 'countryInput', 'countryCustomInput', '', '');
+  const playBtn = document.getElementById('previewPlayBtn');
+  if (playBtn.dataset.url && playBtn.dataset.url === currentPreviewUrl) previewAudio.pause();
+  playBtn.style.display = 'none';
+  playBtn.dataset.url = '';
+  previewCard.classList.remove('show');
+}
+
+// ---------- 직접 입력 (검색 결과에 없는 곡) ----------
+const manualForm = document.getElementById('manualForm');
+document.getElementById('manualToggleBtn').addEventListener('click', () => {
+  const showing = manualForm.style.display === 'flex';
+  manualForm.style.display = showing ? 'none' : 'flex';
+  if (!showing) manualForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+});
+
+document.getElementById('manualSaveBtn').addEventListener('click', async () => {
+  const title = document.getElementById('manualTitle').value.trim();
+  const artist = document.getElementById('manualArtist').value.trim();
+  if (!title || !artist) { toast('제목과 아티스트는 꼭 입력해주세요'); return; }
+  if (!isConfigured) { toast('먼저 Supabase 설정을 완료해주세요'); return; }
+
+  const btn = document.getElementById('manualSaveBtn');
+  btn.disabled = true;
+  btn.textContent = '저장 중...';
+  try {
+    const manualNationalityValue = document.getElementById('manualNationality').value
+      || guessNationality({ title: title, artist: artist, genre: document.getElementById('manualGenre').value.trim() });
+    const payload = {
+      action: 'add',
+      title: title,
+      artist: artist,
+      album: document.getElementById('manualAlbum').value.trim(),
+      releaseDate: document.getElementById('manualYear').value.trim(),
+      genre: document.getElementById('manualGenre').value.trim(),
+      artworkUrl: document.getElementById('manualArtwork').value.trim(),
+      appleMusicUrl: '',
+      memo: document.getElementById('manualMemo').value.trim(),
+      rating: document.getElementById('manualRating').value,
+      nationality: manualNationalityValue,
+      country: manualNationalityValue === 'international' ? getCountryValue('manualCountry', 'manualCountryCustom') : '',
+      source: 'manual'
+    };
+    const addResult = await postToSheet(payload);
+    toast('플레이리스트에 추가했어요 🎧');
+    ['manualTitle','manualArtist','manualAlbum','manualYear','manualGenre','manualArtwork','manualMemo']
+      .forEach(id => document.getElementById(id).value = '');
+    document.getElementById('manualNationality').value = '';
+    document.getElementById('manualRating').value = '';
+    setCountryFieldValue('manualCountryWrap', 'manualCountry', 'manualCountryCustom', '', '');
+    manualForm.style.display = 'none';
+    loadSongs();
+    // 직접 입력한 곡은 저장 흐름을 막지 않도록 뒤에서 조용히(백그라운드) 음원 사이트에서 비슷한 곡을 찾아봄
+    if (addResult && addResult.id) checkManualMatch(addResult.id, title, artist);
+  } catch (err) {
+    toast('저장에 실패했어요: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '직접 입력한 곡 추가';
+  }
+});
+
+// ---------- 직접 입력한 곡의 음원 사이트 매칭 제안 ----------
+// 직접 입력 저장 직후, 제목+아티스트로 iTunes/Spotify를 검색해서 충분히 비슷한 곡이 있으면
+// "이 곡이 맞나요?" 확인 카드를 띄우고, 사용자가 승인하면 정식 음원 정보(앨범아트/링크/미리듣기 등)로 덮어씀.
+let pendingMatchSuggestion = null; // { id, candidate }
+
+async function checkManualMatch(id, title, artist) {
+  try {
+    const term = [title, artist].filter(Boolean).join(' ').trim();
+    if (!term) return;
+    const results = await searchAll(term);
+    if (!results.length) return;
+    const top = results[0]; // searchAll이 이미 관련도순으로 정렬해줌
+    const score = Math.max(fuzzyScore(title, top), fuzzyScore(term, top));
+    if (score < 0.72) return; // 충분히 비슷하지 않으면 그냥 넘어감 (오탐 방지)
+    showMatchSuggestion(id, title, artist, top);
+  } catch (err) {
+    // 백그라운드 매칭이라 실패해도 사용자 흐름을 막지 않고 조용히 무시
+  }
+}
+
+function showMatchSuggestion(id, manualTitle, manualArtist, candidate) {
+  pendingMatchSuggestion = { id, candidate };
+  document.getElementById('matchSuggestTarget').textContent =
+    `직접 입력한 "${manualTitle} - ${manualArtist}"와 비슷한 음원을 찾았어요`;
+  const year = candidate.releaseDate ? String(candidate.releaseDate).slice(0, 4) : '';
+  const artworkHtml = candidate.artworkUrl
+    ? `<img class="match-suggest-thumb" src="${escapeHtml(candidate.artworkUrl)}" alt="">`
+    : '';
+  document.getElementById('matchSuggestBody').innerHTML =
+    artworkHtml +
+    `<div style="font-size:13px;line-height:1.5;">`
+    + `<div style="font-weight:600;">${escapeHtml(candidate.title)}</div>`
+    + `<div style="color:var(--text-dim);">${[escapeHtml(candidate.artist), escapeHtml(candidate.album), escapeHtml(year)].filter(Boolean).join(' · ')}</div>`
+    + `</div>`;
+  const card = document.getElementById('matchSuggestCard');
+  card.style.display = 'block';
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function hideMatchSuggestion() {
+  pendingMatchSuggestion = null;
+  document.getElementById('matchSuggestCard').style.display = 'none';
+}
+
+document.getElementById('matchSuggestAcceptBtn').addEventListener('click', async () => {
+  if (!pendingMatchSuggestion) return;
+  const { id, candidate } = pendingMatchSuggestion;
+  const btn = document.getElementById('matchSuggestAcceptBtn');
+  btn.disabled = true;
+  try {
+    await postToSheet({
+      action: 'update',
+      id: id,
+      title: candidate.title || '',
+      artist: candidate.artist || '',
+      album: candidate.album || '',
+      releaseDate: candidate.releaseDate || '',
+      genre: candidate.genre || '',
+      artworkUrl: candidate.artworkUrl || '',
+      appleMusicUrl: candidate.externalUrl || '',
+      previewUrl: candidate.previewUrl || '',
+      nationality: guessNationality(candidate),
+      source: 'search',
+      matchDismissed: '1'
+    });
+    toast('찾으신 곡 정보로 교체했어요 🎧');
+    hideMatchSuggestion();
+    loadSongs();
+  } catch (err) {
+    toast('교체에 실패했어요: ' + err.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('matchSuggestDismissBtn').addEventListener('click', () => {
+  if (!pendingMatchSuggestion) return;
+  const { id } = pendingMatchSuggestion;
+  hideMatchSuggestion();
+  postToSheet({ action: 'update', id: id, matchDismissed: '1' }).catch(() => {}); // 다시 안 물어보게 표시만, 실패해도 무해
+});
+
+// ---------- 유튜브 링크로 추가 (검색 결과에 없는 곡) ----------
+// 영상을 다운로드/추출하지 않음: 유튜브 공식 oEmbed로 제목/채널명만 가져와 제목·아티스트를 "추천"해주고,
+// 실제 등록 내용은 사용자가 확인/수정한 뒤 저장. 재생은 유튜브 공식 임베드 플레이어로 함.
+const youtubeForm = document.getElementById('youtubeForm');
+let ytFetchedThumbnail = '';
+
+document.getElementById('youtubeToggleBtn').addEventListener('click', () => {
+  const showing = youtubeForm.style.display === 'flex';
+  youtubeForm.style.display = showing ? 'none' : 'flex';
+  if (!showing) youtubeForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+});
+
+// 흔한 유튜브 링크 형태에서 11자리 영상 ID 추출 (Code.gs의 extractYoutubeId_와 동일 로직)
+function extractYoutubeId(url) {
+  if (!url) return '';
+  const m = String(url).match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  return m ? m[1] : '';
+}
+
+// 유튜브 영상 제목은 보통 "아티스트 - 제목" 형태라 그 패턴을 시도하고, 안 되면 채널명을 아티스트로 추천.
+// 어디까지나 추천값이라 사용자가 저장 전에 직접 확인/수정하게 되어 있음.
+function parseYoutubeTitle(rawTitle, channelName) {
+  let t = (rawTitle || '').trim();
+  t = t.replace(/[\(\[][^()\[\]]*(official|m\/?v|music\s*video|lyrics?|audio|visualizer|hd|4k|live)[^()\[\]]*[\)\]]/gi, '').trim();
+  const parts = t.split(/\s[-–—]\s/);
+  if (parts.length >= 2) {
+    return { artist: parts[0].trim(), title: parts.slice(1).join(' - ').trim() };
+  }
+  return { artist: channelName || '', title: t };
+}
+
+document.getElementById('ytFetchBtn').addEventListener('click', async () => {
+  const url = document.getElementById('ytUrlInput').value.trim();
+  if (!url) { toast('유튜브 링크를 먼저 붙여넣어주세요'); return; }
+  if (!isConfigured) { toast('먼저 Supabase 설정을 완료해주세요'); return; }
+  const btn = document.getElementById('ytFetchBtn');
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = '가져오는 중...';
+  try {
+    const res = await fetch(edgeFunctionUrl('youtube-info') + '?url=' + encodeURIComponent(url), { headers: edgeFunctionHeaders() });
+    const data = await res.json();
+    if (!data.success) { toast(data.error || '영상 정보를 가져오지 못했어요'); return; }
+    ytFetchedThumbnail = data.thumbnailUrl || '';
+    document.getElementById('ytPreviewImg').src = ytFetchedThumbnail || PLACEHOLDER_ART;
+    document.getElementById('ytRawTitle').textContent = data.title || '';
+    document.getElementById('ytPreviewRow').style.display = 'flex';
+    const guess = parseYoutubeTitle(data.title, data.channelTitle);
+    document.getElementById('ytTitle').value = guess.title;
+    document.getElementById('ytArtist').value = guess.artist;
+    const guessedNationality = guessNationality({ title: guess.title, artist: guess.artist, genre: '' });
+    document.getElementById('ytNationality').value = guessedNationality;
+    setCountryFieldValue('ytCountryWrap', 'ytCountry', 'ytCountryCustom', guessedNationality, '');
+  } catch (err) {
+    toast('영상 정보를 가져오는 중 오류가 났어요: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+});
+
+document.getElementById('ytSaveBtn').addEventListener('click', async () => {
+  const youtubeUrl = document.getElementById('ytUrlInput').value.trim();
+  const title = document.getElementById('ytTitle').value.trim();
+  const artist = document.getElementById('ytArtist').value.trim();
+  if (!youtubeUrl || !extractYoutubeId(youtubeUrl)) { toast('올바른 유튜브 링크를 먼저 붙여넣어주세요'); return; }
+  if (!title || !artist) { toast('제목과 아티스트는 꼭 입력해주세요'); return; }
+  if (!isConfigured) { toast('먼저 Supabase 설정을 완료해주세요'); return; }
+
+  const btn = document.getElementById('ytSaveBtn');
+  btn.disabled = true;
+  btn.textContent = '저장 중...';
+  try {
+    const ytNationalityValue = document.getElementById('ytNationality').value
+      || guessNationality({ title: title, artist: artist, genre: '' });
+    const payload = {
+      action: 'add',
+      title: title,
+      artist: artist,
+      album: document.getElementById('ytAlbum').value.trim(),
+      releaseDate: document.getElementById('ytYear').value.trim(),
+      genre: '',
+      artworkUrl: ytFetchedThumbnail,
+      appleMusicUrl: '',
+      memo: document.getElementById('ytMemo').value.trim(),
+      rating: document.getElementById('ytRating').value,
+      nationality: ytNationalityValue,
+      country: ytNationalityValue === 'international' ? getCountryValue('ytCountry', 'ytCountryCustom') : '',
+      youtubeUrl: youtubeUrl,
+      source: 'youtube'
+    };
+    await postToSheet(payload);
+    toast('플레이리스트에 추가했어요 🎧');
+    ['ytUrlInput','ytTitle','ytArtist','ytAlbum','ytYear','ytMemo'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('ytNationality').value = '';
+    document.getElementById('ytRating').value = '';
+    document.getElementById('ytPreviewRow').style.display = 'none';
+    ytFetchedThumbnail = '';
+    setCountryFieldValue('ytCountryWrap', 'ytCountry', 'ytCountryCustom', '', '');
+    youtubeForm.style.display = 'none';
+    loadSongs();
+  } catch (err) {
+    toast('저장에 실패했어요: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '유튜브 곡으로 추가';
+  }
+});
+
+// ---------- 가수 이름으로 여러 곡을 한번에 검색해서 선택 추가 ----------
+const artistForm = document.getElementById('artistForm');
+let artistSearchResults = [];
+let artistSelectedIdx = new Set();
+
+document.getElementById('artistToggleBtn').addEventListener('click', () => {
+  const showing = artistForm.style.display === 'flex';
+  artistForm.style.display = showing ? 'none' : 'flex';
+  if (!showing) artistForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+});
+
+// 이미 내 목록에 있는 곡인지(제목+가수 기준) 확인 - 가수 검색 결과에서 중복 추가를 막기 위함
+function isAlreadySaved(item) {
+  const key = normalizeForMatch(item.title) + '|' + normalizeForMatch(item.artist);
+  return currentSongs.some(it => normalizeForMatch(it.title) + '|' + normalizeForMatch(it.artist) === key);
+}
+
+function updateArtistAddButton() {
+  const btn = document.getElementById('artistAddSelectedBtn');
+  const n = artistSelectedIdx.size;
+  btn.textContent = `선택한 곡 추가하기 (${n})`;
+  btn.disabled = n === 0;
+}
+
+function renderArtistResults(results) {
+  const listEl = document.getElementById('artistResultsList');
+  const toolbarEl = document.getElementById('artistToolbar');
+  if (!results.length) {
+    listEl.style.display = 'block';
+    listEl.innerHTML = '<div class="sugg-empty">검색 결과가 없어요. 가수 이름을 다르게 입력해보세요.</div>';
+    toolbarEl.style.display = 'none';
+    updateArtistAddButton();
+    return;
+  }
+  listEl.style.display = 'flex';
+  toolbarEl.style.display = 'flex';
+  listEl.innerHTML = results.map((r, i) => {
+    const dup = isAlreadySaved(r);
+    const year = r.releaseDate ? r.releaseDate.slice(0, 4) : '';
+    return `<div class="artist-result-item${dup ? ' dup' : ''}" data-idx="${i}">
+      <input type="checkbox" data-idx="${i}" ${dup ? 'disabled' : ''} />
+      <img src="${r.artworkUrl || PLACEHOLDER_ART}" loading="lazy" onerror="this.onerror=null;this.src='${PLACEHOLDER_ART}'" />
+      <div class="artist-result-text">
+        <div class="artist-result-title">${escapeHtml(r.title)}</div>
+        <div class="artist-result-sub">${escapeHtml(r.album)}${year ? ' · ' + year : ''}${dup ? ' · 이미 추가됨' : ''}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  [...listEl.querySelectorAll('.artist-result-item')].forEach(el => {
+    if (el.classList.contains('dup')) return;
+    const idx = +el.dataset.idx;
+    const cb = el.querySelector('input[type="checkbox"]');
+    el.addEventListener('click', (e) => {
+      if (e.target === cb) return; // 체크박스 자체를 눌렀을 땐 change 핸들러가 처리하므로 중복 토글 방지
+      cb.checked = !cb.checked;
+      cb.dispatchEvent(new Event('change'));
+    });
+    cb.addEventListener('change', () => {
+      if (cb.checked) artistSelectedIdx.add(idx); else artistSelectedIdx.delete(idx);
+      updateArtistAddButton();
+    });
+  });
+  updateArtistAddButton();
+}
+
+async function runArtistSearch() {
+  const name = document.getElementById('artistSearchInput').value.trim();
+  if (!name) { toast('가수 이름을 입력해주세요'); return; }
+  const listEl = document.getElementById('artistResultsList');
+  listEl.style.display = 'block';
+  listEl.innerHTML = '<div class="sugg-loading">검색 중...</div>';
+  document.getElementById('artistToolbar').style.display = 'none';
+  artistSelectedIdx.clear();
+  try {
+    artistSearchResults = await searchArtistAll(name);
+    renderArtistResults(artistSearchResults);
+  } catch (err) {
+    listEl.innerHTML = '<div class="sugg-empty">검색에 실패했어요. 잠시 후 다시 시도해주세요.</div>';
+  }
+}
+
+document.getElementById('artistSearchBtn').addEventListener('click', runArtistSearch);
+document.getElementById('artistSearchInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); runArtistSearch(); }
+});
+
+document.getElementById('artistSelectAllBtn').addEventListener('click', () => {
+  const listEl = document.getElementById('artistResultsList');
+  const selectable = artistSearchResults.map((r, i) => i).filter(i => !isAlreadySaved(artistSearchResults[i]));
+  const allSelected = selectable.length > 0 && selectable.every(i => artistSelectedIdx.has(i));
+  selectable.forEach(i => { if (allSelected) artistSelectedIdx.delete(i); else artistSelectedIdx.add(i); });
+  [...listEl.querySelectorAll('input[type="checkbox"]')].forEach(cb => {
+    if (cb.disabled) return;
+    cb.checked = artistSelectedIdx.has(+cb.dataset.idx);
+  });
+  updateArtistAddButton();
+});
+
+document.getElementById('artistAddSelectedBtn').addEventListener('click', async () => {
+  if (!artistSelectedIdx.size) return;
+  if (!isConfigured) { toast('먼저 Supabase 설정을 완료해주세요'); return; }
+  const btn = document.getElementById('artistAddSelectedBtn');
+  btn.disabled = true;
+  btn.textContent = '추가 중...';
+  try {
+    const bulkRating = document.getElementById('artistBulkRating').value;
+    const fieldsArray = [...artistSelectedIdx].map(i => {
+      const r = artistSearchResults[i];
+      const nationalityValue = guessNationality(r);
+      return {
+        title: r.title, artist: r.artist, album: r.album, releaseDate: r.releaseDate,
+        genre: r.genre || '', artworkUrl: r.artworkUrl || '', appleMusicUrl: r.externalUrl || '',
+        previewUrl: r.previewUrl || '', memo: '', rating: bulkRating,
+        nationality: nationalityValue, country: '', source: 'search'
+      };
+    });
+    await bulkAddSongs(fieldsArray);
+    toast(`${fieldsArray.length}곡을 한번에 추가했어요 🎧`);
+    artistSelectedIdx.clear();
+    document.getElementById('artistBulkRating').value = '';
+    document.getElementById('artistSearchInput').value = '';
+    document.getElementById('artistResultsList').style.display = 'none';
+    document.getElementById('artistResultsList').innerHTML = '';
+    document.getElementById('artistToolbar').style.display = 'none';
+    artistSearchResults = [];
+    artistForm.style.display = 'none';
+    loadSongs();
+  } catch (err) {
+    toast('일괄 추가에 실패했어요: ' + err.message);
+  } finally {
+    updateArtistAddButton();
+  }
+});
+
+// 유튜브 공식 임베드 플레이어로 재생(다운로드/추출 없음). 한 번에 하나만 재생되게 오버레이 하나만 씀.
+// 재생 전에 영상이 아직 살아있는지 가볍게 확인해서, 삭제/비공개로 바뀐 곡은 목록에서 자동으로 정리함.
+async function openYoutubePlayer(item) {
+  const videoId = extractYoutubeId(item && item.youtubeUrl);
+  if (!videoId) { toast('유튜브 영상 정보를 찾을 수 없어요'); return; }
+  if (previewAudio && !previewAudio.paused) previewAudio.pause(); // 다른 미리듣기가 재생 중이면 멈춤
+  try {
+    const res = await fetch(edgeFunctionUrl('youtube-info') + '?url=' + encodeURIComponent(item.youtubeUrl), { headers: edgeFunctionHeaders() });
+    const data = await res.json();
+    if (!data.success) {
+      toast('삭제되었거나 비공개로 전환된 영상이라 목록에서 자동으로 정리했어요');
+      await postToSheet({ action: 'delete', id: item.id });
+      loadSongs();
+      return;
+    }
+  } catch (err) {
+    // 확인 자체가 실패하면(네트워크 문제 등) 곡을 섣불리 지우지 않고 그냥 재생을 시도함
+  }
+  document.getElementById('ytPlayerFrame').src = 'https://www.youtube.com/embed/' + videoId + '?autoplay=1';
+  document.getElementById('ytPlayerOverlay').style.display = 'flex';
+}
+function closeYoutubePlayer() {
+  document.getElementById('ytPlayerFrame').src = '';
+  document.getElementById('ytPlayerOverlay').style.display = 'none';
+}
+document.getElementById('ytPlayerCloseBtn').addEventListener('click', closeYoutubePlayer);
+document.getElementById('ytPlayerOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'ytPlayerOverlay') closeYoutubePlayer();
+});
+
+// ---------- 곡 수정 ----------
+const editForm = document.getElementById('editForm');
+let editingId = null;
+
+function openEditForm(item) {
+  editingId = item.id;
+  document.getElementById('editTitle').value = item.title || '';
+  document.getElementById('editArtist').value = item.artist || '';
+  document.getElementById('editAlbum').value = item.album || '';
+  document.getElementById('editYear').value = item.releaseDate ? String(item.releaseDate).slice(0, 4) : '';
+  document.getElementById('editMemo').value = item.memo || '';
+  document.getElementById('editRating').value = item.rating || '';
+  document.getElementById('editNationality').value = item.nationality || '';
+  setCountryFieldValue('editCountryWrap', 'editCountry', 'editCountryCustom', item.nationality || '', item.country || '');
+  document.getElementById('editYoutubeUrl').value = item.youtubeUrl || '';
+  editForm.style.display = 'flex';
+  editForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+document.getElementById('editCancelBtn').addEventListener('click', () => {
+  editingId = null;
+  editForm.style.display = 'none';
+});
+
+document.getElementById('editSaveBtn').addEventListener('click', async () => {
+  if (!editingId) return;
+  const title = document.getElementById('editTitle').value.trim();
+  const artist = document.getElementById('editArtist').value.trim();
+  if (!title || !artist) { toast('제목과 아티스트는 꼭 입력해주세요'); return; }
+
+  const btn = document.getElementById('editSaveBtn');
+  btn.disabled = true;
+  btn.textContent = '저장 중...';
+  try {
+    const editNationalityValue = document.getElementById('editNationality').value;
+    await postToSheet({
+      action: 'update',
+      id: editingId,
+      title: title,
+      artist: artist,
+      album: document.getElementById('editAlbum').value.trim(),
+      releaseDate: document.getElementById('editYear').value.trim(),
+      memo: document.getElementById('editMemo').value.trim(),
+      rating: document.getElementById('editRating').value,
+      nationality: editNationalityValue,
+      country: editNationalityValue === 'international' ? getCountryValue('editCountry', 'editCountryCustom') : '',
+      youtubeUrl: document.getElementById('editYoutubeUrl').value.trim()
+    });
+    toast('수정했어요');
+    editingId = null;
+    editForm.style.display = 'none';
+    loadSongs();
+  } catch (err) {
+    toast('수정 실패: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '수정 저장';
+  }
+});
+
+// ---------- Supabase 백엔드 연동 ----------
+// 카멜케이스(JS 쪽 필드명)와 스네이크케이스(Postgres 컬럼명)를 서로 변환하는 매핑.
+// 이 매핑 덕분에 postToSheet/loadSongs 이 두 함수만 바꾸면 되고, 나머지 UI 코드(검색/필터/정렬/폼 등)는
+// 예전 Apps Script 버전과 동일한 필드명(title, releaseDate, artworkUrl 등)을 그대로 쓸 수 있음.
+const SONG_FIELD_MAP = {
+  title: 'title',
+  artist: 'artist',
+  album: 'album',
+  releaseDate: 'release_date',
+  genre: 'genre',
+  artworkUrl: 'artwork_url',
+  appleMusicUrl: 'apple_music_url',
+  memo: 'memo',
+  rating: 'rating',
+  nationality: 'nationality',
+  country: 'country',
+  previewUrl: 'preview_url',
+  youtubeUrl: 'youtube_url',
+  source: 'source',
+  matchDismissed: 'match_dismissed'
+};
+
+function mapItemToRow(fields) {
+  const row = {};
+  Object.keys(SONG_FIELD_MAP).forEach(camelKey => {
+    if (Object.prototype.hasOwnProperty.call(fields, camelKey)) {
+      row[SONG_FIELD_MAP[camelKey]] = fields[camelKey];
+    }
+  });
+  return row;
+}
+
+function mapRowToItem(row) {
+  const item = { id: row.id, addedAt: row.added_at };
+  Object.keys(SONG_FIELD_MAP).forEach(camelKey => {
+    item[camelKey] = row[SONG_FIELD_MAP[camelKey]] || '';
+  });
+  return item;
+}
+
+async function postToSheet(payload) {
+  if (!isConfigured) throw new Error('Supabase 설정이 완료되지 않았어요');
+  const { action, id, ...fields } = payload;
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  if (!user) throw new Error('로그인 세션을 확인하지 못했어요. 새로고침 후 다시 시도해주세요.');
+
+  if (action === 'add') {
+    const row = mapItemToRow(fields);
+    row.user_id = user.id;
+    const { data, error } = await supabaseClient.from('songs').insert(row).select('id').single();
+    if (error) throw new Error(error.message);
+    return { success: true, id: data.id };
+  }
+
+  if (action === 'update') {
+    const row = mapItemToRow(fields);
+    const { error } = await supabaseClient.from('songs').update(row).eq('id', id);
+    if (error) throw new Error(error.message);
+    return { success: true };
+  }
+
+  if (action === 'delete') {
+    const { error } = await supabaseClient.from('songs').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+    return { success: true };
+  }
+
+  throw new Error('알 수 없는 작업이에요: ' + action);
+}
+
+// 가수 검색에서 여러 곡을 한번에 추가할 때: insert에 배열을 넘기면 한 번의 요청으로 모두 저장됨
+// (한 곡씩 여러 번 요청하는 것보다 훨씬 빠르고, Supabase 요청 횟수도 아낄 수 있음)
+async function bulkAddSongs(itemsFields) {
+  if (!isConfigured) throw new Error('Supabase 설정이 완료되지 않았어요');
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  if (!user) throw new Error('로그인 세션을 확인하지 못했어요. 새로고침 후 다시 시도해주세요.');
+  const rows = itemsFields.map(fields => {
+    const row = mapItemToRow(fields);
+    row.user_id = user.id;
+    return row;
+  });
+  const { data, error } = await supabaseClient.from('songs').insert(rows).select('id');
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+// 선택한 여러 곡의 평점을 한 번의 요청으로 일괄 변경 (id 목록에 .in()으로 한 번에 update)
+async function bulkUpdateRating(ids, rating) {
+  if (!isConfigured) throw new Error('Supabase 설정이 완료되지 않았어요');
+  const row = mapItemToRow({ rating: rating });
+  const { error } = await supabaseClient.from('songs').update(row).in('id', ids);
+  if (error) throw new Error(error.message);
+}
+
+let currentSongs = [];
+let currentFilter = 'all'; // 'all' | 'domestic' | 'international'
+let currentCountryFilter = ''; // '해외' 필터일 때만 쓰는 국가 세부 필터
+let currentRatingFilter = 0; // 0 = 전체, n = n점 이상
+let currentDensity = localStorage.getItem('playlistDensity') || 'medium'; // 'large' | 'medium' | 'small'
+let currentLibraryQuery = ''; // 내가 모은 곡 검색어
+let currentSort = 'addedDesc'; // 정렬 기준
+let bulkModeActive = false; // 여러 곡 선택해서 평점 일괄 수정하는 모드
+let bulkSelectedIds = new Set();
+
+document.getElementById('infoToggleBtn').addEventListener('click', () => {
+  const panel = document.getElementById('infoPanel');
+  panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+});
+
+let librarySearchTimer = null;
+document.getElementById('librarySearchInput').addEventListener('input', (e) => {
+  currentLibraryQuery = e.target.value.trim();
+  clearTimeout(librarySearchTimer);
+  librarySearchTimer = setTimeout(renderFilteredList, 150);
+});
+
+document.getElementById('sortSelect').addEventListener('change', (e) => {
+  currentSort = e.target.value;
+  renderFilteredList();
+});
+
+// ---------- 여러 곡 선택해서 평점 일괄 수정 ----------
+function updateBulkBar() {
+  document.getElementById('bulkCountLabel').textContent = bulkSelectedIds.size + '곡 선택됨';
+}
+
+document.getElementById('bulkModeBtn').addEventListener('click', () => {
+  bulkModeActive = !bulkModeActive;
+  bulkSelectedIds.clear();
+  document.getElementById('bulkModeBtn').classList.toggle('active', bulkModeActive);
+  document.getElementById('bulkBar').classList.toggle('show', bulkModeActive);
+  updateBulkBar();
+  renderFilteredList();
+});
+
+document.getElementById('bulkCancelBtn').addEventListener('click', () => {
+  bulkModeActive = false;
+  bulkSelectedIds.clear();
+  document.getElementById('bulkModeBtn').classList.remove('active');
+  document.getElementById('bulkBar').classList.remove('show');
+  renderFilteredList();
+});
+
+document.getElementById('bulkSelectAllBtn').addEventListener('click', () => {
+  // 현재 필터/검색 결과로 화면에 보이는 곡들만 전체 선택 (필터 안 걸린 나머지 곡은 대상 아님)
+  [...document.querySelectorAll('#songList .bulk-check')].forEach(cb => {
+    cb.checked = true;
+    bulkSelectedIds.add(cb.dataset.id);
+  });
+  updateBulkBar();
+});
+
+document.getElementById('bulkApplyRatingBtn').addEventListener('click', async () => {
+  if (!bulkSelectedIds.size) { toast('먼저 곡을 선택해주세요'); return; }
+  const val = document.getElementById('bulkRatingSelect').value;
+  if (!val) { toast('적용할 평점을 선택해주세요'); return; }
+  const ratingValue = val === '__clear' ? '' : val;
+  const btn = document.getElementById('bulkApplyRatingBtn');
+  btn.disabled = true;
+  btn.textContent = '적용 중...';
+  try {
+    const ids = [...bulkSelectedIds];
+    await bulkUpdateRating(ids, ratingValue);
+    toast(`${ids.length}곡의 평점을 한번에 바꿨어요`);
+    bulkSelectedIds.clear();
+    document.getElementById('bulkRatingSelect').value = '';
+    updateBulkBar();
+    loadSongs();
+  } catch (err) {
+    toast('일괄 수정 실패: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '선택한 곡에 적용';
+  }
+});
+
+function yearOf(item) {
+  const y = item.releaseDate ? parseInt(String(item.releaseDate).slice(0, 4), 10) : NaN;
+  return y;
+}
+function compareYear(a, b, dir) {
+  const ya = yearOf(a), yb = yearOf(b);
+  const aMissing = isNaN(ya), bMissing = isNaN(yb);
+  if (aMissing && bMissing) return 0;
+  if (aMissing) return 1;
+  if (bMissing) return -1;
+  return dir === 'asc' ? ya - yb : yb - ya;
+}
+function sortItems(items, sortKey) {
+  const arr = [...items];
+  const localeCompare = (a, b) => String(a || '').localeCompare(String(b || ''), 'ko');
+  switch (sortKey) {
+    case 'titleAsc': return arr.sort((a, b) => localeCompare(a.title, b.title));
+    case 'titleDesc': return arr.sort((a, b) => localeCompare(b.title, a.title));
+    case 'artistAsc': return arr.sort((a, b) => localeCompare(a.artist, b.artist));
+    case 'artistDesc': return arr.sort((a, b) => localeCompare(b.artist, a.artist));
+    case 'yearAsc': return arr.sort((a, b) => compareYear(a, b, 'asc'));
+    case 'yearDesc': return arr.sort((a, b) => compareYear(a, b, 'desc'));
+    case 'addedAsc': return arr.reverse(); // currentSongs는 이미 최신순이라 뒤집으면 오래된순
+    case 'addedDesc':
+    default: return arr;
+  }
+}
+
+document.querySelectorAll('#filterTabs .filter-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentFilter = btn.dataset.filter;
+    document.querySelectorAll('#filterTabs .filter-tab').forEach(b => b.classList.toggle('active', b === btn));
+    const countrySel = document.getElementById('countryFilterSelect');
+    if (currentFilter === 'international') {
+      populateCountryFilterOptions();
+      countrySel.style.display = 'block';
+    } else {
+      currentCountryFilter = '';
+      countrySel.value = '';
+      countrySel.style.display = 'none';
+    }
+    renderFilteredList();
+  });
+});
+
+document.getElementById('countryFilterSelect').addEventListener('change', (e) => {
+  currentCountryFilter = e.target.value;
+  renderFilteredList();
+});
+
+// 국내/해외 필터가 "해외"일 때, 실제 저장된 곡들의 국가 값(일본/미국/기타 직접입력 등)으로 세부 선택지를 채움
+function populateCountryFilterOptions() {
+  const sel = document.getElementById('countryFilterSelect');
+  const countries = Array.from(new Set(
+    currentSongs.filter(it => it.nationality === 'international' && it.country).map(it => it.country)
+  )).sort();
+  sel.innerHTML = '<option value="">해외 전체</option>'
+    + countries.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  sel.value = currentCountryFilter;
+}
+
+document.querySelectorAll('#ratingTabs .filter-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentRatingFilter = +btn.dataset.rating;
+    document.querySelectorAll('#ratingTabs .filter-tab').forEach(b => b.classList.toggle('active', b === btn));
+    renderFilteredList();
+  });
+});
+
+// ---------- 보기 크기 (크게/중간/작게) ----------
+const songListEl = document.getElementById('songList');
+function applyDensity(density) {
+  currentDensity = density;
+  localStorage.setItem('playlistDensity', density);
+  songListEl.className = 'song-list' + (density === 'medium' ? '' : ' density-' + density);
+  document.querySelectorAll('.density-tab').forEach(b => b.classList.toggle('active', b.dataset.density === density));
+}
+document.querySelectorAll('.density-tab').forEach(btn => {
+  btn.addEventListener('click', () => applyDensity(btn.dataset.density));
+});
+applyDensity(currentDensity);
+
+async function loadSongs() {
+  const emptyEl = document.getElementById('emptyState');
+
+  if (!isConfigured) {
+    emptyEl.style.display = 'block';
+    emptyEl.textContent = '설정을 완료하면 여기에 목록이 표시돼요.';
+    return;
+  }
+
+  try {
+    // RLS(Row Level Security)가 "내 user_id 행만" 자동으로 걸러주기 때문에 별도 uid 필터가 필요 없음
+    const { data, error } = await supabaseClient
+      .from('songs')
+      .select('*')
+      .order('added_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    currentSongs = (data || []).map(mapRowToItem);
+    if (currentFilter === 'international') populateCountryFilterOptions(); // 새로 불러온 목록 기준으로 국가 선택지 갱신
+    renderFilteredList();
+  } catch (err) {
+    emptyEl.style.display = 'block';
+    emptyEl.textContent = '목록을 불러오지 못했어요. Supabase 설정을 확인해주세요.';
+  }
+}
+
+function renderFilteredList() {
+  const listEl = document.getElementById('songList');
+  const emptyEl = document.getElementById('emptyState');
+  const countPill = document.getElementById('countPill');
+
+  let items = currentFilter === 'all'
+    ? currentSongs
+    : currentSongs.filter(it => it.nationality === currentFilter);
+  if (currentFilter === 'international' && currentCountryFilter) {
+    items = items.filter(it => it.country === currentCountryFilter);
+  }
+  if (currentRatingFilter > 0) {
+    items = items.filter(it => (+it.rating || 0) >= currentRatingFilter);
+  }
+  if (currentLibraryQuery) {
+    const q = normalizeForMatch(currentLibraryQuery);
+    items = items.filter(it => {
+      const combined = normalizeForMatch([it.title, it.artist, it.album, it.memo].filter(Boolean).join(' '));
+      if (combined.indexOf(q) !== -1) return true;
+      return fuzzyScore(currentLibraryQuery, it) >= 0.6;
+    });
+  }
+  items = sortItems(items, currentSort);
+
+  const filterActive = currentFilter !== 'all' || currentRatingFilter > 0 || !!currentCountryFilter || !!currentLibraryQuery;
+  countPill.textContent = items.length + '곡'
+    + (filterActive ? ` / 전체 ${currentSongs.length}곡` : '');
+
+  if (!items.length) {
+    listEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+    emptyEl.textContent = currentSongs.length
+      ? '해당 조건에 맞는 곡이 없어요.'
+      : '아직 추가한 곡이 없어요. 위 검색창에서 노래를 찾아 추가해보세요!';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  listEl.innerHTML = items.map(renderSongCard).join('');
+
+  [...listEl.querySelectorAll('.bulk-check')].forEach(cb => {
+    cb.addEventListener('change', () => {
+      if (cb.checked) bulkSelectedIds.add(cb.dataset.id); else bulkSelectedIds.delete(cb.dataset.id);
+      updateBulkBar();
+    });
+  });
+
+  [...listEl.querySelectorAll('.del-btn')].forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('이 곡을 삭제할까요?')) return;
+      try {
+        await postToSheet({ action: 'delete', id: btn.dataset.id });
+        loadSongs();
+      } catch (err) {
+        toast('삭제 실패: ' + err.message);
+      }
+    });
+  });
+
+  [...listEl.querySelectorAll('.edit-btn')].forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item = currentSongs.find(it => it.id === btn.dataset.id);
+      if (item) openEditForm(item);
+    });
+  });
+
+  [...listEl.querySelectorAll('.yt-play-btn')].forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item = currentSongs.find(it => it.id === btn.dataset.id);
+      if (item) openYoutubePlayer(item);
+    });
+  });
+
+  [...listEl.querySelectorAll('.preview-btn:not(.yt-play-btn)')].forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (btn.dataset.url) { togglePreview(btn.dataset.url); return; }
+      // 업데이트 이전에 추가돼서 previewUrl이 저장 안 되어 있는 곡: 지금 검색해서 찾아보고, 찾으면 이후에도 쓰게 시트에 저장
+      const item = currentSongs.find(it => it.id === btn.dataset.id);
+      if (!item) return;
+      btn.disabled = true;
+      btn.textContent = '...';
+      try {
+        const found = await resolvePreviewUrl(item);
+        if (!found) { toast('이 곡은 미리듣기를 찾지 못했어요'); return; }
+        item.previewUrl = found;
+        btn.dataset.url = found;
+        togglePreview(found);
+        postToSheet({ action: 'update', id: item.id, previewUrl: found }).catch(() => {}); // 다음부터는 바로 재생되게 저장 (실패해도 이번 재생엔 지장 없음)
+      } catch (err) {
+        toast('미리듣기를 찾는 중 오류가 났어요');
+      } finally {
+        btn.disabled = false;
+        if (!btn.dataset.url) btn.textContent = '▶';
+      }
+    });
+  });
+}
+
+// previewUrl이 없는(업데이트 이전에 추가된) 곡을 제목+가수로 다시 검색해서 미리듣기 URL을 찾아봄
+async function resolvePreviewUrl(item) {
+  const term = [item.artist, item.title].filter(Boolean).join(' ').trim();
+  if (!term) return '';
+  try {
+    const results = await searchItunes(term);
+    if (!results.length) return '';
+    const ranked = rankByRelevance(results, term);
+    const best = ranked.find(r => r.previewUrl);
+    return (best && best.previewUrl) || '';
+  } catch (err) {
+    return '';
+  }
+}
+
+const PLACEHOLDER_ART = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="#333"/><text x="50" y="58" font-size="34" text-anchor="middle" fill="#888">♪</text></svg>'
+);
+
+function renderSongCard(item) {
+  const year = item.releaseDate ? String(item.releaseDate).slice(0,4) : '';
+  const stars = item.rating ? '★'.repeat(+item.rating) : '';
+  const nationLabel = item.nationality === 'domestic' ? '국내' : (item.nationality === 'international' ? (item.country || '해외') : '');
+  const subParts = [item.artist, item.album, year].filter(Boolean).map(escapeHtml);
+  if (nationLabel) subParts.push(`<span class="nation-tag">${escapeHtml(nationLabel)}</span>`);
+  // previewUrl이 없어도(업데이트 이전에 추가된 곡) 버튼은 항상 보여주고, 누르는 시점에 검색해서 채워 넣음
+  const previewBtn = `<button class="preview-btn" data-id="${item.id}" data-url="${escapeHtml(item.previewUrl || '')}" title="미리듣기">▶</button>`;
+  // 유튜브 링크로 등록된 곡은 유튜브 공식 임베드 플레이어로 재생하는 버튼을 따로 보여줌
+  const ytBtn = item.youtubeUrl
+    ? `<button class="preview-btn yt-play-btn" data-id="${item.id}" title="유튜브로 재생">▶ YT</button>`
+    : '';
+  const bulkCheckbox = bulkModeActive
+    ? `<input type="checkbox" class="bulk-check" data-id="${item.id}" ${bulkSelectedIds.has(item.id) ? 'checked' : ''} />`
+    : '';
+  return `<div class="song-card">
+    ${bulkCheckbox}
+    <img src="${item.artworkUrl || PLACEHOLDER_ART}" loading="lazy" onerror="this.onerror=null;this.src='${PLACEHOLDER_ART}'" />
+    <div class="song-main">
+      <div class="song-text">
+        <div class="song-title">${escapeHtml(item.title)} ${stars ? '· ' + stars : ''}</div>
+        <div class="song-sub">${subParts.join(' · ')}</div>
+      </div>
+      ${item.memo ? `<div class="song-memo">${escapeHtml(item.memo)}</div>` : ''}
+    </div>
+    <div class="song-actions">
+      ${ytBtn || previewBtn}
+      <button class="edit-btn" data-id="${item.id}" title="수정">✏️</button>
+      <button class="del-btn" data-id="${item.id}">✕</button>
+    </div>
+  </div>`;
+}
+
+function escapeHtml(str) {
+  return String(str || '').replace(/[&<>"']/g, m => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[m]));
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// 초기 로드
+loadSongs();
+</script>
+</body>
+</html>

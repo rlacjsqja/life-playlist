@@ -26,12 +26,13 @@
     text-size-adjust:100%;
   }
   html, body{
-    /* 특정 요소가 화면 너비를 넘어가더라도 전체 페이지가 옆으로 스크롤되며
-       화면이 잘려 보이는 문제를 막기 위한 안전장치 */
-    overflow-x:hidden;
     max-width:100%;
   }
   body{
+    /* 특정 요소가 화면 너비를 넘어가더라도 전체 페이지가 옆으로 스크롤되며 화면이 잘려 보이는 문제를
+       막기 위한 안전장치. html에도 같이 걸면 상단 고정(position:sticky)이 깨지는 브라우저 버그가 있어서
+       body에만 적용함 */
+    overflow-x:hidden;
     margin:0;
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
     background:var(--bg);
@@ -134,6 +135,7 @@
   }
   .preview-extra input, .preview-extra select{
     flex:1;
+    min-width:0;
     padding:8px 10px;
     border-radius:8px;
     border:1px solid var(--border);
@@ -343,6 +345,7 @@
   }
   .manual-form input, .manual-form select{
     width:100%;
+    min-width:0;
     padding:10px 12px;
     border-radius:8px;
     border:1px solid var(--border);
@@ -409,6 +412,8 @@
     line-height:1.5;
   }
   .mylink-banner strong{color:var(--text);}
+  #inAppBrowserBanner{font-size:11px;padding:8px 12px;line-height:1.4;}
+  #inAppBrowserBanner > div:first-child{margin-bottom:4px;}
   .mylink-banner li{margin-bottom:6px;}
   .mylink-banner li:last-child{margin-bottom:0;}
   .match-suggest-card{border:1.5px solid var(--accent);}
@@ -458,6 +463,14 @@
     gap:8px;
     font-size:13px;
   }
+  .sticky-top{
+    position:sticky;
+    top:0;
+    z-index:30;
+    background:var(--bg);
+    border-bottom:1px solid var(--border);
+    padding-bottom:10px;
+  }
   .login-status img{width:28px;height:28px;border-radius:50%;}
   .logout-btn{
     background:none;
@@ -472,10 +485,18 @@
 </head>
 <body>
 
-<header>
-  <h1>🎵 내 인생 플레이리스트</h1>
-  <p>제목이나 가수, 앨범명을 입력하면 자동으로 정보를 채워드려요</p>
-</header>
+<div class="sticky-top">
+  <header>
+    <h1>🎵 내 인생 플레이리스트</h1>
+    <p>제목이나 가수, 앨범명을 입력하면 자동으로 정보를 채워드려요</p>
+  </header>
+  <div class="wrap">
+    <div class="search-box">
+      <input id="searchInput" type="text" placeholder="예: dancing queen, abba..." autocomplete="off" />
+      <div id="suggestions" class="suggestions"></div>
+    </div>
+  </div>
+</div>
 
 <div class="wrap">
 
@@ -508,11 +529,6 @@
       <span id="loginStatus"></span>
       <button id="logoutBtn" class="logout-btn" type="button">로그아웃</button>
     </div>
-  </div>
-
-  <div class="search-box">
-    <input id="searchInput" type="text" placeholder="예: dancing queen, abba..." autocomplete="off" />
-    <div id="suggestions" class="suggestions"></div>
   </div>
 
   <div id="configBanner" class="config-banner" style="display:none;">

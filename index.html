@@ -1088,7 +1088,8 @@ async function searchArtistAll(artistName) {
     if (prioDiff !== 0) return prioDiff;
     const aDate = a.releaseDate ? new Date(a.releaseDate).getTime() : Infinity;
     const bDate = b.releaseDate ? new Date(b.releaseDate).getTime() : Infinity;
-    return aDate - bDate;
+    if (aDate !== bDate) return aDate - bDate;
+    return sourcePriority(a) - sourcePriority(b);
   });
   sorted.debugErrors = debugErrors;
   return sorted;
@@ -1146,6 +1147,14 @@ function priorityScore(item) {
   return isLikelyCompilation(item.album) ? 2 : 0;
 }
 
+// 검색 결과가 여러 소스에 비슷하게 걸릴 때, 사용 횟수 제한이 없는 iTunes를 우선 보여주기 위한 순서
+// (스포티파이도 무료지만 별도 앱 등록이 필요해서 그다음, 유튜브는 하루 무료 검색 횟수가 제한적이라 마지막)
+function sourcePriority(item) {
+  if (item.source === 'itunes') return 0;
+  if (item.source === 'spotify') return 1;
+  return 2; // youtube
+}
+
 // ---------- 오타/근사 검색 ----------
 // 검색어와 후보 문자열을 비교할 때 공백/일부 문장부호를 무시하고 소문자로 맞춰서 비교
 function normalizeForMatch(s) {
@@ -1198,6 +1207,8 @@ function rankByRelevance(results, term) {
     .sort((a, b) => {
       const fuzzyDiff = b.fuzzy - a.fuzzy;
       if (Math.abs(fuzzyDiff) > 0.12) return fuzzyDiff;
+      const srcDiff = sourcePriority(a.item) - sourcePriority(b.item);
+      if (srcDiff !== 0) return srcDiff;
       const prioDiff = priorityScore(a.item) - priorityScore(b.item);
       if (prioDiff !== 0) return prioDiff;
       const aDate = a.item.releaseDate ? new Date(a.item.releaseDate).getTime() : Infinity;

@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>내 인생 플레이리스트</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <style>
   :root{
@@ -40,8 +41,40 @@
     padding-bottom:60px;
   }
   header{
+    position:relative;
     padding:28px 20px 16px;
     text-align:center;
+  }
+  .mini-account{
+    position:absolute;
+    top:14px;right:16px;
+  }
+  #miniAvatarBtn{
+    display:none;
+    width:32px;height:32px;
+    border-radius:50%;
+    padding:0;
+    border:1px solid var(--border);
+    background:var(--card);
+    cursor:pointer;
+    overflow:hidden;
+  }
+  #miniAvatarBtn img{width:100%;height:100%;object-fit:cover;display:block;}
+  .login-status-popover{
+    position:absolute;
+    top:40px;right:0;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:10px 12px;
+    display:flex;
+    flex-direction:column;
+    align-items:flex-end;
+    gap:8px;
+    font-size:12px;
+    white-space:nowrap;
+    box-shadow:0 8px 20px rgba(0,0,0,.4);
+    z-index:40;
   }
   header h1{
     margin:0;
@@ -487,6 +520,15 @@
 
 <div class="sticky-top">
   <header>
+    <div id="miniAccount" class="mini-account">
+      <button id="miniAvatarBtn" type="button" title="계정">
+        <img id="loginAvatar" src="" alt="" />
+      </button>
+      <div id="loginStatusRow" class="login-status-popover" style="display:none;">
+        <span id="loginStatus"></span>
+        <button id="logoutBtn" class="logout-btn" type="button">로그아웃</button>
+      </div>
+    </div>
     <h1>🎵 내 인생 플레이리스트</h1>
     <p>제목이나 가수, 앨범명을 입력하면 자동으로 정보를 채워드려요</p>
   </header>
@@ -524,11 +566,6 @@
   <div id="loginBox" class="login-box" style="display:none;">
     <div id="loginPrompt" class="hint">Google로 로그인하면 어떤 기기에서든 같은 목록을 이어볼 수 있어요. 로그인하지 않으면 이 브라우저에서만 목록이 보여요.</div>
     <button id="googleSignInBtn" class="logout-btn" type="button">Google로 로그인</button>
-    <div id="loginStatusRow" class="login-status" style="display:none;">
-      <img id="loginAvatar" src="" alt="" />
-      <span id="loginStatus"></span>
-      <button id="logoutBtn" class="logout-btn" type="button">로그아웃</button>
-    </div>
   </div>
 
   <div id="configBanner" class="config-banner" style="display:none;">
@@ -909,9 +946,9 @@ async function ensureSession() {
 function applyAuthUser(user) {
   currentUser = user || null;
   const loggedIn = !!(user && user.email); // 익명 사용자는 email이 없음
-  document.getElementById('loginPrompt').style.display = loggedIn ? 'none' : '';
-  document.getElementById('googleSignInBtn').style.display = loggedIn ? 'none' : '';
-  document.getElementById('loginStatusRow').style.display = loggedIn ? 'flex' : 'none';
+  document.getElementById('loginBox').style.display = loggedIn ? 'none' : 'flex';
+  document.getElementById('miniAvatarBtn').style.display = loggedIn ? 'block' : 'none';
+  if (!loggedIn) document.getElementById('loginStatusRow').style.display = 'none'; // 로그아웃되면 열려있던 팝오버도 닫기
   if (loggedIn) {
     const meta = user.user_metadata || {};
     document.getElementById('loginAvatar').src = meta.avatar_url || meta.picture || '';
@@ -945,9 +982,18 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
   applyAuthUser(user);
 });
 
+// 우상단 프로필 아이콘을 누르면 이름/로그아웃이 담긴 작은 팝업이 뜨고, 다시 누르거나 바깥을 누르면 닫힘
+document.getElementById('miniAvatarBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const popover = document.getElementById('loginStatusRow');
+  popover.style.display = popover.style.display === 'flex' ? 'none' : 'flex';
+});
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#miniAccount')) document.getElementById('loginStatusRow').style.display = 'none';
+});
+
 async function initAuth() {
   if (!isConfigured) return;
-  document.getElementById('loginBox').style.display = 'flex';
 
   // 구글 계정 "연결"이 실패해서(그 구글 계정이 이미 다른 사용자에게 연결돼 있는 경우 등) 에러와 함께 돌아온 경우,
   // 연결 대신 "그 기존 계정으로 로그인"으로 자동 전환해줌.

@@ -321,6 +321,7 @@
   }
   .badge.src-spotify{color:#1DB954;border-color:#1DB95455;}
   .badge.src-itunes{color:#ff7cb0;border-color:#ff7cb055;}
+  .badge.src-youtube{color:#ff4d4d;border-color:#ff4d4d55;}
   .badge.type-album{color:var(--accent);border-color:var(--accent);}
   .badge.type-single{color:#ffb84d;border-color:#ffb84d55;}
   .badge.type-compilation{color:var(--text-dim);}
@@ -994,6 +995,29 @@ async function searchSpotify(term) {
   return (data.items || []).map(item => Object.assign({ source: 'spotify' }, item));
 }
 
+// 유튜브 검색 (YouTube Data API, Supabase Edge Function 경유)
+// 유튜브 API는 하루 무료 검색 횟수가 제한적이라(약 100회), 아래 띄어쓰기 재검색 대상에는 포함하지 않고
+// 원래 검색어로 한 번만 조회합니다. YOUTUBE_API_KEY가 설정되어 있지 않으면 빈 목록을 반환합니다.
+async function searchYoutube(term) {
+  if (!isConfigured) return [];
+  const url = edgeFunctionUrl('youtube-search') + '?term=' + encodeURIComponent(term);
+  const res = await fetch(url, { headers: edgeFunctionHeaders() });
+  const data = await res.json();
+  if (!data.success) return [];
+  return (data.items || []).map(item => ({
+    source: 'youtube',
+    title: item.title || '',
+    artist: item.channelTitle || '',
+    album: '',
+    releaseDate: item.publishedAt || '',
+    genre: '',
+    artworkUrl: item.artworkUrl || '',
+    externalUrl: item.externalUrl || '',
+    previewUrl: '',
+    albumType: ''
+  }));
+}
+
 // 진단용: 각 검색 소스가 실패한 이유를 잠깐 기록해서 화면에 보여줍니다 (원인 파악되면 제거 예정)
 function describeSearchError(source, err) {
   return source + ': ' + (err && err.message ? err.message : String(err));
@@ -1005,12 +1029,13 @@ async function searchAll(term) {
   const altTerm = term.replace(/\s+/g, '');
   const terms = altTerm && altTerm !== term ? [term, altTerm] : [term];
   const debugErrors = [];
-  const resultSets = await Promise.all(
-    terms.flatMap(t => [
+  const resultSets = await Promise.all([
+    ...terms.flatMap(t => [
       searchItunes(t).catch(err => { debugErrors.push(describeSearchError('iTunes', err)); return []; }),
       searchSpotify(t).catch(err => { debugErrors.push(describeSearchError('Spotify', err)); return []; })
-    ])
-  );
+    ]),
+    searchYoutube(term).catch(err => { debugErrors.push(describeSearchError('YouTube', err)); return []; })
+  ]);
   const merged = dedupeResults(resultSets.flat());
   const ranked = rankByRelevance(merged, term).slice(0, 12);
   ranked.debugErrors = debugErrors;
@@ -1051,11 +1076,12 @@ async function searchSpotifyByArtist(artistName) {
 
 async function searchArtistAll(artistName) {
   const debugErrors = [];
-  const [itunesResults, spotifyResults] = await Promise.all([
+  const [itunesResults, spotifyResults, youtubeResults] = await Promise.all([
     searchItunesByArtist(artistName).catch(err => { debugErrors.push(describeSearchError('iTunes', err)); return []; }),
-    searchSpotifyByArtist(artistName).catch(err => { debugErrors.push(describeSearchError('Spotify', err)); return []; })
+    searchSpotifyByArtist(artistName).catch(err => { debugErrors.push(describeSearchError('Spotify', err)); return []; }),
+    searchYoutube(artistName).catch(err => { debugErrors.push(describeSearchError('YouTube', err)); return []; })
   ]);
-  const merged = dedupeResults([...itunesResults, ...spotifyResults]);
+  const merged = dedupeResults([...itunesResults, ...spotifyResults, ...youtubeResults]);
   // 정규앨범 우선, 그다음 발매년도 오래된순으로 정렬해서 디스코그래피처럼 보이게 함
   const sorted = merged.sort((a, b) => {
     const prioDiff = priorityScore(a) - priorityScore(b);
@@ -1296,10 +1322,12 @@ function renderSuggestions(results) {
     const year = r.releaseDate ? r.releaseDate.slice(0, 4) : '';
     const srcBadge = r.source === 'spotify'
       ? '<span class="badge src-spotify">Spotify</span>'
+      : r.source === 'youtube'
+      ? '<span class="badge src-youtube">YouTube</span>'
       : '<span class="badge src-itunes">iTunes</span>';
     const typeLabel = albumTypeLabel(r);
     const typeClass = r.albumType === 'album' ? 'type-album' : (r.albumType === 'single' ? 'type-single' : 'type-compilation');
-    const typeBadge = typeLabel ? `<span class="badge ${typeClass}">${typeLabel}</span>` : '';
+    const typeBadge = (r.source !== 'youtube' && typeLabel) ? `<span class="badge ${typeClass}">${typeLabel}</span>` : '';
     const previewBtn = r.previewUrl
       ? `<button type="button" class="preview-btn sugg-preview-btn" data-url="${escapeHtml(r.previewUrl)}" title="미리듣기">▶</button>`
       : '';
@@ -1307,7 +1335,7 @@ function renderSuggestions(results) {
       <img src="${r.artworkUrl || PLACEHOLDER_ART}" loading="lazy" onerror="this.onerror=null;this.src='${PLACEHOLDER_ART}'" />
       <div class="sugg-text" style="flex:1;">
         <div class="sugg-title">${escapeHtml(r.title)}</div>
-        <div class="sugg-sub">${escapeHtml(r.artist)} · ${escapeHtml(r.album)} ${year ? '· ' + year : ''}</div>
+        <div class="sugg-sub">${[r.artist, r.album, year].filter(Boolean).map(escapeHtml).join(' · ')}</div>
         <div class="badge-row">${srcBadge}${typeBadge}</div>
       </div>
       ${previewBtn}
@@ -1734,7 +1762,7 @@ function renderArtistResults(results) {
       <img src="${r.artworkUrl || PLACEHOLDER_ART}" loading="lazy" onerror="this.onerror=null;this.src='${PLACEHOLDER_ART}'" />
       <div class="artist-result-text">
         <div class="artist-result-title">${escapeHtml(r.title)}</div>
-        <div class="artist-result-sub">${escapeHtml(r.album)}${year ? ' · ' + year : ''}${dup ? ' · 이미 추가됨' : ''}</div>
+        <div class="artist-result-sub">${[r.album, year].filter(Boolean).map(escapeHtml).join(' · ')}${dup ? ' · 이미 추가됨' : ''}</div>
       </div>
     </div>`;
   }).join('');

@@ -445,8 +445,6 @@
     line-height:1.5;
   }
   .mylink-banner strong{color:var(--text);}
-  #inAppBrowserBanner{font-size:11px;padding:8px 12px;line-height:1.4;}
-  #inAppBrowserBanner > div:first-child{margin-bottom:4px;}
   .mylink-banner li{margin-bottom:6px;}
   .mylink-banner li:last-child{margin-bottom:0;}
   .match-suggest-card{border:1.5px solid var(--accent);}
@@ -542,19 +540,15 @@
 
 <div class="wrap">
 
-  <div id="inAppBrowserBanner" class="mylink-banner" style="display:none;border:1.5px solid var(--danger);">
-    <div style="font-weight:700;margin-bottom:6px;">⚠️ <span id="inAppBrowserName"></span> 안의 브라우저에서는 구글 로그인이 안 될 수 있어요</div>
-    <div style="margin-bottom:8px;">구글 정책상 카카오톡·인스타그램 등 앱 안에서 열리는 브라우저에서는 로그인 창이 아예 안 뜨거나 막힐 수 있어요. 화면의 메뉴(⋮ 또는 공유 아이콘)에서 <strong>"다른 브라우저로 열기"</strong>를 눌러 Chrome이나 Safari로 열면 로그인이 정상적으로 돼요. (로그인 없이 이 화면 그대로 써도 곡을 보고 추가하는 건 가능해요)</div>
-    <div class="edit-actions">
-      <button id="copyLinkBtn" class="save-btn" type="button" style="margin-top:0;">🔗 이 링크 복사하기</button>
-    </div>
-  </div>
-
   <div class="manual-toggle" style="margin-top:0;">
     <button id="infoToggleBtn" type="button">ℹ️ 사용 안내</button>
   </div>
   <div id="infoPanel" class="mylink-banner" style="display:none;">
     <ul style="margin:0;padding-left:18px;">
+      <li id="inAppBrowserInfoItem" style="display:none;">
+        ⚠️ <strong><span id="inAppBrowserName"></span> 안의 브라우저</strong>에서는 구글 로그인이 안 될 수 있어요. 화면의 메뉴(⋮ 또는 공유 아이콘)에서 <strong>"다른 브라우저로 열기"</strong>를 눌러 Chrome이나 Safari로 열면 정상적으로 로그인돼요.
+        <button id="copyLinkBtn" type="button" style="margin:4px 0 0;background:none;border:1px solid var(--border);color:var(--text-dim);padding:3px 8px;border-radius:6px;font-size:11px;cursor:pointer;">🔗 이 링크 복사하기</button>
+      </li>
       <li>로그인해야 모든 기기에서 같은 목록을 볼 수 있어요. 로그인하지 않으면 이 기기에서만 보여요.</li>
       <li>제목이나 가수 이름을 일부만 입력해도 자동으로 추천해드려요.</li>
       <li>약간의 오타나 띄어쓰기 차이는 자동으로 보정하지만, 너무 큰 오타는 못 잡을 수 있어요.</li>
@@ -915,7 +909,7 @@ function detectInAppBrowser() {
 const inAppBrowserName = detectInAppBrowser();
 if (inAppBrowserName) {
   document.getElementById('inAppBrowserName').textContent = inAppBrowserName;
-  document.getElementById('inAppBrowserBanner').style.display = 'block';
+  document.getElementById('inAppBrowserInfoItem').style.display = 'list-item';
 }
 document.getElementById('copyLinkBtn').addEventListener('click', async () => {
   try {
@@ -1032,7 +1026,7 @@ window.addEventListener('load', initAuth);
 // 스포티파이처럼 Supabase Edge Function을 거쳐서 대신 조회합니다.
 async function searchItunes(term) {
   if (!isConfigured) return [];
-  const url = edgeFunctionUrl('itunes-search') + '?term=' + encodeURIComponent(term) + '&limit=25';
+  const url = edgeFunctionUrl('itunes-search') + '?term=' + encodeURIComponent(term) + '&limit=100';
   const res = await fetch(url, { headers: edgeFunctionHeaders() });
   const data = await res.json();
   if (!data.success) return [];
@@ -1051,14 +1045,20 @@ async function searchItunes(term) {
 }
 
 // 스포티파이는 Supabase Edge Function을 통해 프록시로 검색 (Client Secret 보호 + CORS 회피)
-// Spotify Client ID/Secret이 설정 안 되어 있으면 서버가 빈 목록을 주므로 그냥 iTunes 결과만 쓰게 됨
-async function searchSpotify(term) {
-  if (!isConfigured) return [];
-  const url = edgeFunctionUrl('spotify-search') + '?term=' + encodeURIComponent(term) + '&limit=25';
+// Spotify Client ID/Secret이 설정 안 되어 있으면 서버가 빈 목록을 주므로 그냥 iTunes 결과만 쓰게 됨.
+// offset을 넘기면 다음 페이지를 가져옴(스크롤로 더 많은 결과를 이어서 보여주기 위함) - total도 같이 받아서
+// 스포티파이 쪽에 더 가져올 결과가 남았는지 판단함.
+async function searchSpotify(term, offset) {
+  if (!isConfigured) return { items: [], total: 0 };
+  let url = edgeFunctionUrl('spotify-search') + '?term=' + encodeURIComponent(term) + '&limit=25';
+  if (offset) url += '&offset=' + offset;
   const res = await fetch(url, { headers: edgeFunctionHeaders() });
   const data = await res.json();
-  if (!data.success) return [];
-  return (data.items || []).map(item => Object.assign({ source: 'spotify' }, item));
+  if (!data.success) return { items: [], total: 0 };
+  return {
+    items: (data.items || []).map(item => Object.assign({ source: 'spotify' }, item)),
+    total: data.total || 0
+  };
 }
 
 // 유튜브 검색 (YouTube Data API, Supabase Edge Function 경유)
@@ -1095,16 +1095,22 @@ async function searchAll(term) {
   const altTerm = term.replace(/\s+/g, '');
   const terms = altTerm && altTerm !== term ? [term, altTerm] : [term];
   const debugErrors = [];
+  let spotifyTotal = 0;
   const resultSets = await Promise.all([
     ...terms.flatMap(t => [
       searchItunes(t).catch(err => { debugErrors.push(describeSearchError('iTunes', err)); return []; }),
-      searchSpotify(t).catch(err => { debugErrors.push(describeSearchError('Spotify', err)); return []; })
+      searchSpotify(t).then(r => { if (t === term) spotifyTotal = r.total; return r.items; })
+        .catch(err => { debugErrors.push(describeSearchError('Spotify', err)); return []; })
     ]),
     searchYoutube(term).catch(err => { debugErrors.push(describeSearchError('YouTube', err)); return []; })
   ]);
   const merged = dedupeResults(resultSets.flat());
-  const ranked = rankByRelevance(merged, term).slice(0, 40);
+  const ranked = rankByRelevance(merged, term);
   ranked.debugErrors = debugErrors;
+  // 이 검색어로 스크롤할 때 스포티파이에서 더 가져올 수 있는지(몇 번째부터 이어받을지) 기록해둠
+  ranked.spotifyTerm = term;
+  ranked.spotifyOffset = 25;
+  ranked.spotifyTotal = spotifyTotal;
   return ranked;
 }
 
@@ -1437,6 +1443,42 @@ function appendMoreSuggestions() {
   suggRenderedCount += next.length;
 }
 
+// 화면에 이미 나와있는 곡과 겹치는 걸(제목+가수 기준) 걸러내고 새로 받아온 곡만 남김
+function dedupeAgainstCurrent(newItems) {
+  const seen = new Set(currentResults.map(r => normalizeForMatch(r.title) + '|' + normalizeForMatch(r.artist)));
+  const out = [];
+  newItems.forEach(r => {
+    const key = normalizeForMatch(r.title) + '|' + normalizeForMatch(r.artist);
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(r);
+  });
+  return out;
+}
+
+// 화면에 보이는 결과를 다 스크롤해서 소진하면, 스포티파이에 더 가져올 곡이 남아있는 한
+// 다음 페이지를 새로 요청해서 이어붙입니다(iTunes/유튜브는 한 번에 최대한 많이 받아오고 더 이상 페이지가 없어서 제외).
+let spotifyMore = null; // { term, offset, total, loading }
+
+async function loadMoreFromSpotify() {
+  if (!spotifyMore || spotifyMore.loading) return;
+  if (spotifyMore.offset >= spotifyMore.total) return;
+  spotifyMore.loading = true;
+  try {
+    const page = await searchSpotify(spotifyMore.term, spotifyMore.offset);
+    spotifyMore.offset += 25;
+    const fresh = dedupeAgainstCurrent(page.items);
+    if (fresh.length) {
+      currentResults.push(...fresh);
+      appendMoreSuggestions();
+    }
+  } catch (err) {
+    // 스크롤 중 실패는 조용히 넘어감 (다음 스크롤에서 다시 시도됨)
+  } finally {
+    spotifyMore.loading = false;
+  }
+}
+
 function renderSuggestions(results) {
   if (!results.length) {
     const dbg = (results.debugErrors && results.debugErrors.length)
@@ -1444,25 +1486,29 @@ function renderSuggestions(results) {
       : '';
     suggBox.innerHTML = '<div class="sugg-empty">검색 결과가 없어요. 아래 "직접 입력하기"로 추가할 수 있어요.</div>' + dbg;
     suggBox.classList.add('show');
+    spotifyMore = null;
     return;
   }
   suggBox.innerHTML = '';
   suggRenderedCount = 0;
+  spotifyMore = { term: results.spotifyTerm, offset: results.spotifyOffset, total: results.spotifyTotal, loading: false };
   appendMoreSuggestions();
   suggBox.classList.add('show');
 }
 
-// 검색창 결과 목록을 아래쪽 끝까지 스크롤하면(휴대폰/태블릿/PC 공통) 다음 묶음을 이어서 보여줌
+// 검색창 결과 목록을 아래쪽 끝까지 스크롤하면(휴대폰/태블릿/PC 공통) 다음 묶음을 이어서 보여주고,
+// 이미 받아온 결과를 다 보여준 뒤에는 스포티파이에서 다음 페이지를 새로 받아옴
 suggBox.addEventListener('scroll', () => {
   if (suggBox.scrollTop + suggBox.clientHeight < suggBox.scrollHeight - 60) return;
-  if (suggRenderedCount >= currentResults.length) return;
-  appendMoreSuggestions();
+  if (suggRenderedCount < currentResults.length) { appendMoreSuggestions(); return; }
+  loadMoreFromSpotify();
 });
 
 function hideSuggestions(){
   suggBox.classList.remove('show');
   suggBox.innerHTML = '';
   suggRenderedCount = 0;
+  spotifyMore = null;
 }
 
 document.addEventListener('click', (e) => {

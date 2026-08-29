@@ -45,6 +45,8 @@ Deno.serve(async (req: Request) => {
     const url = new URL(req.url);
     const term = url.searchParams.get("term") || "";
     const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get("limit") || "15", 10) || 15));
+    // 스포티파이 자체 한도: offset + limit이 1000을 넘을 수 없음 (더보기 스크롤이 끝없이 갈 수는 없는 이유)
+    const offset = Math.min(1000 - limit, Math.max(0, parseInt(url.searchParams.get("offset") || "0", 10) || 0));
     if (!term) {
       return new Response(JSON.stringify({ success: true, items: [] }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -60,11 +62,12 @@ Deno.serve(async (req: Request) => {
     }
 
     const res = await fetch(
-      "https://api.spotify.com/v1/search?type=track&market=KR&limit=" + limit + "&q=" + encodeURIComponent(term),
+      "https://api.spotify.com/v1/search?type=track&market=KR&limit=" + limit + "&offset=" + offset + "&q=" + encodeURIComponent(term),
       { headers: { Authorization: `Bearer ${token}` } },
     );
     const data = await res.json();
     const tracks = (data.tracks && data.tracks.items) || [];
+    const total = (data.tracks && data.tracks.total) || 0;
     const items = tracks.map((t: any) => {
       const album = t.album || {};
       const images = album.images || [];
@@ -81,11 +84,11 @@ Deno.serve(async (req: Request) => {
       };
     });
 
-    return new Response(JSON.stringify({ success: true, items }), {
+    return new Response(JSON.stringify({ success: true, items, total }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ success: true, items: [], error: String(err) }), {
+    return new Response(JSON.stringify({ success: true, items: [], total: 0, error: String(err) }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

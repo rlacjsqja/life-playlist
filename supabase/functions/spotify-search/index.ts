@@ -44,6 +44,7 @@ Deno.serve(async (req: Request) => {
   try {
     const url = new URL(req.url);
     const term = url.searchParams.get("term") || "";
+    const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get("limit") || "15", 10) || 15));
     if (!term) {
       return new Response(JSON.stringify({ success: true, items: [] }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -59,7 +60,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const res = await fetch(
-      "https://api.spotify.com/v1/search?type=track&market=KR&limit=15&q=" + encodeURIComponent(term),
+      "https://api.spotify.com/v1/search?type=track&market=KR&limit=" + limit + "&q=" + encodeURIComponent(term),
       { headers: { Authorization: `Bearer ${token}` } },
     );
     const data = await res.json();

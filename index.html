@@ -577,7 +577,7 @@
   <div class="manual-toggle">
     <button id="manualToggleBtn" type="button">✏️ 검색 결과에 없나요? 직접 입력하기</button>
     <button id="youtubeToggleBtn" type="button">▶ 유튜브 링크로 추가하기</button>
-    <button id="artistToggleBtn" type="button">🎤 가수 곡 여러 개 한번에 추가하기</button>
+    <button id="artistToggleBtn" type="button">🎤 가수/앨범 곡 여러 개 한번에 추가하기</button>
   </div>
   <div id="manualForm" class="manual-form">
     <input id="manualTitle" type="text" placeholder="제목 *" />
@@ -669,9 +669,13 @@
   </div>
 
   <div id="artistForm" class="manual-form">
-    <div class="hint" style="font-size:12px;color:var(--text-dim);">
+    <div class="hint" id="artistFormHint" style="font-size:12px;color:var(--text-dim);">
       가수 이름으로 검색하면 그 가수의 곡들이 쭉 나와요. 원하는 곡들만 체크해서 한 번에 추가할 수 있어요.
       (이미 플레이리스트에 있는 곡은 자동으로 표시되고 선택할 수 없어요)
+    </div>
+    <div class="filter-tabs" id="artistModeTabs">
+      <button type="button" class="filter-tab active" data-mode="artist">🎤 가수로 찾기</button>
+      <button type="button" class="filter-tab" data-mode="album">💿 앨범으로 찾기</button>
     </div>
     <div class="row">
       <input id="artistSearchInput" type="text" placeholder="가수 이름 (예: 아이유, IU)" />
@@ -1028,7 +1032,7 @@ window.addEventListener('load', initAuth);
 // 스포티파이처럼 Supabase Edge Function을 거쳐서 대신 조회합니다.
 async function searchItunes(term) {
   if (!isConfigured) return [];
-  const url = edgeFunctionUrl('itunes-search') + '?term=' + encodeURIComponent(term) + '&limit=15';
+  const url = edgeFunctionUrl('itunes-search') + '?term=' + encodeURIComponent(term) + '&limit=25';
   const res = await fetch(url, { headers: edgeFunctionHeaders() });
   const data = await res.json();
   if (!data.success) return [];
@@ -1050,7 +1054,7 @@ async function searchItunes(term) {
 // Spotify Client ID/Secret이 설정 안 되어 있으면 서버가 빈 목록을 주므로 그냥 iTunes 결과만 쓰게 됨
 async function searchSpotify(term) {
   if (!isConfigured) return [];
-  const url = edgeFunctionUrl('spotify-search') + '?term=' + encodeURIComponent(term);
+  const url = edgeFunctionUrl('spotify-search') + '?term=' + encodeURIComponent(term) + '&limit=25';
   const res = await fetch(url, { headers: edgeFunctionHeaders() });
   const data = await res.json();
   if (!data.success) return [];
@@ -1062,7 +1066,7 @@ async function searchSpotify(term) {
 // 원래 검색어로 한 번만 조회합니다. YOUTUBE_API_KEY가 설정되어 있지 않으면 빈 목록을 반환합니다.
 async function searchYoutube(term) {
   if (!isConfigured) return [];
-  const url = edgeFunctionUrl('youtube-search') + '?term=' + encodeURIComponent(term);
+  const url = edgeFunctionUrl('youtube-search') + '?term=' + encodeURIComponent(term) + '&limit=20';
   const res = await fetch(url, { headers: edgeFunctionHeaders() });
   const data = await res.json();
   if (!data.success) return [];
@@ -1099,17 +1103,18 @@ async function searchAll(term) {
     searchYoutube(term).catch(err => { debugErrors.push(describeSearchError('YouTube', err)); return []; })
   ]);
   const merged = dedupeResults(resultSets.flat());
-  const ranked = rankByRelevance(merged, term).slice(0, 12);
+  const ranked = rankByRelevance(merged, term).slice(0, 40);
   ranked.debugErrors = debugErrors;
   return ranked;
 }
 
-// ---------- 가수 이름으로 그 가수의 곡을 여러 개 한번에 찾기 (일반 검색과 다르게 결과를 최대한 많이, 가수 한정으로) ----------
-// iTunes는 attribute=artistTerm으로 "이 가수 이름"에 한정해서 검색할 수 있고,
-// 스포티파이는 검색어 자체에 artist: 필터를 붙이면 같은 효과를 냄(Edge Function 코드 변경 없이 재사용 가능).
-async function searchItunesByArtist(artistName) {
+// ---------- 가수 또는 앨범 이름으로 곡을 여러 개 한번에 찾기 (일반 검색과 다르게 결과를 최대한 많이, 가수/앨범 한정으로) ----------
+// iTunes는 attribute=artistTerm/albumTerm으로 "이 가수/앨범"에 한정해서 검색할 수 있고,
+// 스포티파이는 검색어 자체에 artist:/album: 필터를 붙이면 같은 효과를 냄(Edge Function 코드 변경 없이 재사용 가능).
+async function searchItunesByAttr(term, mode) {
   if (!isConfigured) return [];
-  const url = edgeFunctionUrl('itunes-search') + '?term=' + encodeURIComponent(artistName) + '&attribute=artistTerm&limit=50';
+  const attribute = mode === 'album' ? 'albumTerm' : 'artistTerm';
+  const url = edgeFunctionUrl('itunes-search') + '?term=' + encodeURIComponent(term) + '&attribute=' + attribute + '&limit=50';
   const res = await fetch(url, { headers: edgeFunctionHeaders() });
   const data = await res.json();
   if (!data.success) return [];
@@ -1127,21 +1132,22 @@ async function searchItunesByArtist(artistName) {
   }));
 }
 
-async function searchSpotifyByArtist(artistName) {
+async function searchSpotifyByAttr(term, mode) {
   if (!isConfigured) return [];
-  const url = edgeFunctionUrl('spotify-search') + '?term=' + encodeURIComponent('artist:' + artistName);
+  const prefix = mode === 'album' ? 'album:' : 'artist:';
+  const url = edgeFunctionUrl('spotify-search') + '?term=' + encodeURIComponent(prefix + term) + '&limit=50';
   const res = await fetch(url, { headers: edgeFunctionHeaders() });
   const data = await res.json();
   if (!data.success) return [];
   return (data.items || []).map(item => Object.assign({ source: 'spotify' }, item));
 }
 
-async function searchArtistAll(artistName) {
+async function searchBulkAll(term, mode) {
   const debugErrors = [];
   const [itunesResults, spotifyResults, youtubeResults] = await Promise.all([
-    searchItunesByArtist(artistName).catch(err => { debugErrors.push(describeSearchError('iTunes', err)); return []; }),
-    searchSpotifyByArtist(artistName).catch(err => { debugErrors.push(describeSearchError('Spotify', err)); return []; }),
-    searchYoutube(artistName).catch(err => { debugErrors.push(describeSearchError('YouTube', err)); return []; })
+    searchItunesByAttr(term, mode).catch(err => { debugErrors.push(describeSearchError('iTunes', err)); return []; }),
+    searchSpotifyByAttr(term, mode).catch(err => { debugErrors.push(describeSearchError('Spotify', err)); return []; }),
+    searchYoutube(term).catch(err => { debugErrors.push(describeSearchError('YouTube', err)); return []; })
   ]);
   const merged = dedupeResults([...itunesResults, ...spotifyResults, ...youtubeResults]);
   // 정규앨범 우선, 그다음 발매년도 오래된순으로 정렬해서 디스코그래피처럼 보이게 함
@@ -1382,6 +1388,55 @@ searchInput.addEventListener('input', () => {
   }, 300);
 });
 
+// 검색 결과가 많을 때 한 번에 다 그리지 않고, 스크롤해서 아래쪽에 가까워질 때마다
+// 이미 받아온 결과 중 다음 묶음을 이어서 보여주는 방식(인피니트 스크롤)으로 처리합니다.
+const SUGG_BATCH_SIZE = 10;
+let suggRenderedCount = 0;
+
+function suggItemHtml(r, i) {
+  const year = r.releaseDate ? r.releaseDate.slice(0, 4) : '';
+  const srcBadge = r.source === 'spotify'
+    ? '<span class="badge src-spotify">Spotify</span>'
+    : r.source === 'youtube'
+    ? '<span class="badge src-youtube">YouTube</span>'
+    : '<span class="badge src-itunes">iTunes</span>';
+  const typeLabel = albumTypeLabel(r);
+  const typeClass = r.albumType === 'album' ? 'type-album' : (r.albumType === 'single' ? 'type-single' : 'type-compilation');
+  const typeBadge = (r.source !== 'youtube' && typeLabel) ? `<span class="badge ${typeClass}">${typeLabel}</span>` : '';
+  const previewBtn = r.previewUrl
+    ? `<button type="button" class="preview-btn sugg-preview-btn" data-url="${escapeHtml(r.previewUrl)}" title="미리듣기">▶</button>`
+    : '';
+  return `<div class="sugg-item" data-idx="${i}">
+    <img src="${r.artworkUrl || PLACEHOLDER_ART}" loading="lazy" onerror="this.onerror=null;this.src='${PLACEHOLDER_ART}'" />
+    <div class="sugg-text" style="flex:1;">
+      <div class="sugg-title">${escapeHtml(r.title)}</div>
+      <div class="sugg-sub">${[r.artist, r.album, year].filter(Boolean).map(escapeHtml).join(' · ')}</div>
+      <div class="badge-row">${srcBadge}${typeBadge}</div>
+    </div>
+    ${previewBtn}
+  </div>`;
+}
+
+function wireSuggItem(el) {
+  el.addEventListener('click', () => selectResult(currentResults[+el.dataset.idx]));
+  const btn = el.querySelector('.sugg-preview-btn');
+  if (btn) {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      togglePreview(btn.dataset.url);
+    });
+  }
+}
+
+function appendMoreSuggestions() {
+  const next = currentResults.slice(suggRenderedCount, suggRenderedCount + SUGG_BATCH_SIZE);
+  if (!next.length) return;
+  const startIdx = suggRenderedCount;
+  suggBox.insertAdjacentHTML('beforeend', next.map((r, i) => suggItemHtml(r, startIdx + i)).join(''));
+  [...suggBox.querySelectorAll('.sugg-item')].slice(startIdx).forEach(wireSuggItem);
+  suggRenderedCount += next.length;
+}
+
 function renderSuggestions(results) {
   if (!results.length) {
     const dbg = (results.debugErrors && results.debugErrors.length)
@@ -1391,45 +1446,23 @@ function renderSuggestions(results) {
     suggBox.classList.add('show');
     return;
   }
-  suggBox.innerHTML = results.map((r, i) => {
-    const year = r.releaseDate ? r.releaseDate.slice(0, 4) : '';
-    const srcBadge = r.source === 'spotify'
-      ? '<span class="badge src-spotify">Spotify</span>'
-      : r.source === 'youtube'
-      ? '<span class="badge src-youtube">YouTube</span>'
-      : '<span class="badge src-itunes">iTunes</span>';
-    const typeLabel = albumTypeLabel(r);
-    const typeClass = r.albumType === 'album' ? 'type-album' : (r.albumType === 'single' ? 'type-single' : 'type-compilation');
-    const typeBadge = (r.source !== 'youtube' && typeLabel) ? `<span class="badge ${typeClass}">${typeLabel}</span>` : '';
-    const previewBtn = r.previewUrl
-      ? `<button type="button" class="preview-btn sugg-preview-btn" data-url="${escapeHtml(r.previewUrl)}" title="미리듣기">▶</button>`
-      : '';
-    return `<div class="sugg-item" data-idx="${i}">
-      <img src="${r.artworkUrl || PLACEHOLDER_ART}" loading="lazy" onerror="this.onerror=null;this.src='${PLACEHOLDER_ART}'" />
-      <div class="sugg-text" style="flex:1;">
-        <div class="sugg-title">${escapeHtml(r.title)}</div>
-        <div class="sugg-sub">${[r.artist, r.album, year].filter(Boolean).map(escapeHtml).join(' · ')}</div>
-        <div class="badge-row">${srcBadge}${typeBadge}</div>
-      </div>
-      ${previewBtn}
-    </div>`;
-  }).join('');
+  suggBox.innerHTML = '';
+  suggRenderedCount = 0;
+  appendMoreSuggestions();
   suggBox.classList.add('show');
-
-  [...suggBox.querySelectorAll('.sugg-item')].forEach(el => {
-    el.addEventListener('click', () => selectResult(currentResults[+el.dataset.idx]));
-  });
-  [...suggBox.querySelectorAll('.sugg-preview-btn')].forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      togglePreview(btn.dataset.url);
-    });
-  });
 }
+
+// 검색창 결과 목록을 아래쪽 끝까지 스크롤하면(휴대폰/태블릿/PC 공통) 다음 묶음을 이어서 보여줌
+suggBox.addEventListener('scroll', () => {
+  if (suggBox.scrollTop + suggBox.clientHeight < suggBox.scrollHeight - 60) return;
+  if (suggRenderedCount >= currentResults.length) return;
+  appendMoreSuggestions();
+});
 
 function hideSuggestions(){
   suggBox.classList.remove('show');
   suggBox.innerHTML = '';
+  suggRenderedCount = 0;
 }
 
 document.addEventListener('click', (e) => {
@@ -1788,15 +1821,49 @@ document.getElementById('ytSaveBtn').addEventListener('click', async () => {
   }
 });
 
-// ---------- 가수 이름으로 여러 곡을 한번에 검색해서 선택 추가 ----------
+// ---------- 가수 또는 앨범 이름으로 여러 곡을 한번에 검색해서 선택 추가 ----------
 const artistForm = document.getElementById('artistForm');
 let artistSearchResults = [];
 let artistSelectedIdx = new Set();
+let bulkSearchMode = 'artist'; // 'artist' | 'album'
+
+const BULK_MODE_TEXT = {
+  artist: {
+    hint: '가수 이름으로 검색하면 그 가수의 곡들이 쭉 나와요. 원하는 곡들만 체크해서 한 번에 추가할 수 있어요. (이미 플레이리스트에 있는 곡은 자동으로 표시되고 선택할 수 없어요)',
+    placeholder: '가수 이름 (예: 아이유, IU)',
+    emptyMsg: '검색 결과가 없어요. 가수 이름을 다르게 입력해보세요.',
+    requiredMsg: '가수 이름을 입력해주세요'
+  },
+  album: {
+    hint: '앨범명으로 검색하면 그 앨범에 담긴 곡들이 쭉 나와요. 원하는 곡들만 체크해서 한 번에 추가할 수 있어요. (이미 플레이리스트에 있는 곡은 자동으로 표시되고 선택할 수 없어요)',
+    placeholder: '앨범명 (예: 화양연화 pt.1)',
+    emptyMsg: '검색 결과가 없어요. 앨범명을 다르게 입력해보세요.',
+    requiredMsg: '앨범명을 입력해주세요'
+  }
+};
 
 document.getElementById('artistToggleBtn').addEventListener('click', () => {
   const showing = artistForm.style.display === 'flex';
   artistForm.style.display = showing ? 'none' : 'flex';
   if (!showing) artistForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+});
+
+document.querySelectorAll('#artistModeTabs .filter-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#artistModeTabs .filter-tab').forEach(b => b.classList.toggle('active', b === btn));
+    bulkSearchMode = btn.dataset.mode;
+    const t = BULK_MODE_TEXT[bulkSearchMode];
+    document.getElementById('artistFormHint').textContent = t.hint;
+    document.getElementById('artistSearchInput').placeholder = t.placeholder;
+    // 모드를 바꾸면 이전 검색 결과는 의미가 없어지므로 정리
+    document.getElementById('artistSearchInput').value = '';
+    document.getElementById('artistResultsList').style.display = 'none';
+    document.getElementById('artistResultsList').innerHTML = '';
+    document.getElementById('artistToolbar').style.display = 'none';
+    artistSearchResults = [];
+    artistSelectedIdx.clear();
+    updateArtistAddButton();
+  });
 });
 
 // 이미 내 목록에 있는 곡인지(제목+가수 기준) 확인 - 가수 검색 결과에서 중복 추가를 막기 위함
@@ -1820,7 +1887,7 @@ function renderArtistResults(results) {
       ? '<div class="sugg-empty" style="font-size:11px;">(진단용: ' + escapeHtml(results.debugErrors.join(' / ')) + ')</div>'
       : '';
     listEl.style.display = 'block';
-    listEl.innerHTML = '<div class="sugg-empty">검색 결과가 없어요. 가수 이름을 다르게 입력해보세요.</div>' + dbg;
+    listEl.innerHTML = '<div class="sugg-empty">' + escapeHtml(BULK_MODE_TEXT[bulkSearchMode].emptyMsg) + '</div>' + dbg;
     toolbarEl.style.display = 'none';
     updateArtistAddButton();
     return;
@@ -1859,14 +1926,14 @@ function renderArtistResults(results) {
 
 async function runArtistSearch() {
   const name = document.getElementById('artistSearchInput').value.trim();
-  if (!name) { toast('가수 이름을 입력해주세요'); return; }
+  if (!name) { toast(BULK_MODE_TEXT[bulkSearchMode].requiredMsg); return; }
   const listEl = document.getElementById('artistResultsList');
   listEl.style.display = 'block';
   listEl.innerHTML = '<div class="sugg-loading">검색 중...</div>';
   document.getElementById('artistToolbar').style.display = 'none';
   artistSelectedIdx.clear();
   try {
-    artistSearchResults = await searchArtistAll(name);
+    artistSearchResults = await searchBulkAll(name, bulkSearchMode);
     renderArtistResults(artistSearchResults);
   } catch (err) {
     listEl.innerHTML = '<div class="sugg-empty">검색에 실패했어요: ' + escapeHtml(err && err.message ? err.message : String(err)) + '</div>';

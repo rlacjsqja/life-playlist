@@ -227,6 +227,21 @@
     border-color:var(--accent);
     font-weight:600;
   }
+  .filter-row{
+    display:flex;
+    gap:8px;
+    margin-top:12px;
+  }
+  .filter-row select{
+    flex:1;
+    min-width:0;
+    padding:8px 6px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--card);
+    color:var(--text);
+    font-size:12.5px;
+  }
   .nation-tag{color:var(--accent-2);}
   .edit-btn{
     background:none;border:none;color:var(--text-dim);
@@ -734,23 +749,24 @@
     <input id="librarySearchInput" type="text" placeholder="🔍 내가 모은 곡 검색 (제목·가수·앨범·메모)" autocomplete="off" />
   </div>
 
-  <div class="filter-tabs" id="filterTabs">
-    <button type="button" class="filter-tab active" data-filter="all">전체</button>
-    <button type="button" class="filter-tab" data-filter="domestic">국내</button>
-    <button type="button" class="filter-tab" data-filter="international">해외</button>
+  <div class="filter-row">
+    <select id="filterSelect">
+      <option value="all">전체</option>
+      <option value="domestic">국내</option>
+      <option value="international">해외</option>
+    </select>
+    <select id="ratingSelect">
+      <option value="0">평점 전체</option>
+      <option value="5">★5</option>
+      <option value="4">★4+</option>
+      <option value="3">★3+</option>
+      <option value="2">★2+</option>
+      <option value="1">★1+</option>
+    </select>
   </div>
   <select id="countryFilterSelect" style="display:none;margin-top:8px;width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:12.5px;">
     <option value="">해외 전체</option>
   </select>
-
-  <div class="filter-tabs" id="ratingTabs" style="margin-top:8px;flex-wrap:wrap;">
-    <button type="button" class="filter-tab active" data-rating="0">평점 전체</button>
-    <button type="button" class="filter-tab" data-rating="5">★5</button>
-    <button type="button" class="filter-tab" data-rating="4">★4+</button>
-    <button type="button" class="filter-tab" data-rating="3">★3+</button>
-    <button type="button" class="filter-tab" data-rating="2">★2+</button>
-    <button type="button" class="filter-tab" data-rating="1">★1+</button>
-  </div>
 
   <select id="sortSelect" style="margin-top:8px;width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:12.5px;">
     <option value="addedDesc">정렬: 최근 추가순</option>
@@ -2333,21 +2349,18 @@ function sortItems(items, sortKey) {
   }
 }
 
-document.querySelectorAll('#filterTabs .filter-tab').forEach(btn => {
-  btn.addEventListener('click', () => {
-    currentFilter = btn.dataset.filter;
-    document.querySelectorAll('#filterTabs .filter-tab').forEach(b => b.classList.toggle('active', b === btn));
-    const countrySel = document.getElementById('countryFilterSelect');
-    if (currentFilter === 'international') {
-      populateCountryFilterOptions();
-      countrySel.style.display = 'block';
-    } else {
-      currentCountryFilter = '';
-      countrySel.value = '';
-      countrySel.style.display = 'none';
-    }
-    renderFilteredList();
-  });
+document.getElementById('filterSelect').addEventListener('change', (e) => {
+  currentFilter = e.target.value;
+  const countrySel = document.getElementById('countryFilterSelect');
+  if (currentFilter === 'international') {
+    populateCountryFilterOptions();
+    countrySel.style.display = 'block';
+  } else {
+    currentCountryFilter = '';
+    countrySel.value = '';
+    countrySel.style.display = 'none';
+  }
+  renderFilteredList();
 });
 
 document.getElementById('countryFilterSelect').addEventListener('change', (e) => {
@@ -2366,12 +2379,9 @@ function populateCountryFilterOptions() {
   sel.value = currentCountryFilter;
 }
 
-document.querySelectorAll('#ratingTabs .filter-tab').forEach(btn => {
-  btn.addEventListener('click', () => {
-    currentRatingFilter = +btn.dataset.rating;
-    document.querySelectorAll('#ratingTabs .filter-tab').forEach(b => b.classList.toggle('active', b === btn));
-    renderFilteredList();
-  });
+document.getElementById('ratingSelect').addEventListener('change', (e) => {
+  currentRatingFilter = +e.target.value;
+  renderFilteredList();
 });
 
 // ---------- 보기 크기 (크게/중간/작게) ----------

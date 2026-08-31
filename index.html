@@ -1280,7 +1280,14 @@ function fuzzyScore(term, item) {
     .filter(Boolean);
   let best = 0;
   candidates.forEach(c => {
-    if (c.indexOf(q) !== -1 || q.indexOf(c) !== -1) { best = Math.max(best, 1); return; }
+    if (c.indexOf(q) !== -1 || q.indexOf(c) !== -1) {
+      // 검색어가 후보 안에 통째로 들어있어도, 검색어가 후보 전체에서 차지하는 비중이 작으면
+      // (예: "bill"이 훨씬 긴 이름 "billevanstrio" 안에 우연히 끼어있는 경우) 점수를 낮춤 -
+      // "bills"처럼 검색어와 거의 같은 길이인 후보가 훨씬 높은 점수를 받도록 함
+      const ratio = Math.min(q.length, c.length) / Math.max(q.length, c.length);
+      best = Math.max(best, ratio);
+      return;
+    }
     const prefix = c.slice(0, q.length + 2);
     const simFull = 1 - levenshtein(q, c) / Math.max(q.length, c.length);
     const simPrefix = 1 - levenshtein(q, prefix) / Math.max(q.length, prefix.length, 1);

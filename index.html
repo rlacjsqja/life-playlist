@@ -859,6 +859,8 @@
     <option value="artistDesc">정렬: 가수 내림차순</option>
     <option value="yearAsc">정렬: 발매년도 오래된순</option>
     <option value="yearDesc">정렬: 발매년도 최신순</option>
+    <option value="ratingDesc">정렬: 평점 높은순</option>
+    <option value="ratingAsc">정렬: 평점 낮은순</option>
   </select>
 
   <div id="editForm" class="manual-form">
@@ -2616,6 +2618,15 @@ function compareYear(a, b, dir) {
   if (bMissing) return -1;
   return dir === 'asc' ? ya - yb : yb - ya;
 }
+// 평점 없는 곡(빈 문자열)은 방향과 상관없이 항상 맨 뒤로 보냄
+function compareRating(a, b, dir) {
+  const ra = +a.rating || 0, rb = +b.rating || 0;
+  const aMissing = ra === 0, bMissing = rb === 0;
+  if (aMissing && bMissing) return 0;
+  if (aMissing) return 1;
+  if (bMissing) return -1;
+  return dir === 'asc' ? ra - rb : rb - ra;
+}
 function sortItems(items, sortKey) {
   const arr = [...items];
   const localeCompare = (a, b) => String(a || '').localeCompare(String(b || ''), 'ko');
@@ -2626,6 +2637,8 @@ function sortItems(items, sortKey) {
     case 'artistDesc': return arr.sort((a, b) => localeCompare(b.artist, a.artist));
     case 'yearAsc': return arr.sort((a, b) => compareYear(a, b, 'asc'));
     case 'yearDesc': return arr.sort((a, b) => compareYear(a, b, 'desc'));
+    case 'ratingAsc': return arr.sort((a, b) => compareRating(a, b, 'asc'));
+    case 'ratingDesc': return arr.sort((a, b) => compareRating(a, b, 'desc'));
     case 'addedAsc': return arr.reverse(); // currentSongs는 이미 최신순이라 뒤집으면 오래된순
     case 'addedDesc':
     default: return arr;

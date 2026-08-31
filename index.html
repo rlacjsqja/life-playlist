@@ -38,7 +38,7 @@
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
     background:var(--bg);
     color:var(--text);
-    padding-bottom:60px;
+    padding-bottom:90px;
   }
   header{
     position:relative;
@@ -280,6 +280,65 @@
     border-bottom:1px solid var(--border);
     z-index:15;
   }
+
+  /* ---------- 플레이리스트 화면 ---------- */
+  .playlist-card-list{display:flex;flex-direction:column;gap:8px;}
+  .playlist-card, .picker-playlist-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    width:100%;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:14px;
+    cursor:pointer;
+    color:var(--text);
+    font-size:13px;
+    text-align:left;
+  }
+  .playlist-card:hover, .picker-playlist-row:hover{background:var(--card-hover);}
+  .playlist-card-name{font-weight:700;}
+  .playlist-card-count{font-size:12px;color:var(--text-dim);}
+  .back-link{
+    background:none;border:none;color:var(--accent);font-size:13px;cursor:pointer;padding:0;
+  }
+  .danger-outline-btn{
+    background:none;border:1px solid var(--danger);color:var(--danger);
+    padding:5px 10px;border-radius:8px;font-size:12px;cursor:pointer;
+  }
+
+  /* ---------- 하단 탭바 ---------- */
+  .bottom-tab-bar{
+    position:fixed;
+    left:50%;
+    bottom:14px;
+    transform:translateX(-50%);
+    width:calc(100% - 32px);
+    max-width:608px;
+    display:flex;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:16px;
+    box-shadow:0 8px 24px rgba(0,0,0,.4);
+    z-index:40;
+    overflow:hidden;
+  }
+  .tab-btn{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:2px;
+    padding:10px 0 8px;
+    background:none;
+    border:none;
+    color:var(--text-dim);
+    cursor:pointer;
+  }
+  .tab-icon{font-size:19px;line-height:1;}
+  .tab-label{font-size:11px;}
+  .tab-btn.active{color:var(--accent);}
   .song-card{
     display:flex;
     align-items:center;
@@ -414,6 +473,17 @@
     font-size:13px;
   }
   .manual-form .row{display:flex;gap:8px;}
+  .row{display:flex;gap:8px;}
+  .row input{
+    flex:1;
+    min-width:0;
+    padding:10px 12px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--bg);
+    color:var(--text);
+    font-size:13px;
+  }
 
   .artist-result-list{
     max-height:340px;
@@ -565,7 +635,7 @@
   </div>
 </div>
 
-<div class="wrap">
+<div class="wrap" id="homeView">
 
   <div class="manual-toggle" style="margin-top:0;">
     <button id="infoToggleBtn" type="button">ℹ️ 사용 안내</button>
@@ -868,6 +938,7 @@
       <option value="__clear">평점 없음으로</option>
     </select>
     <button type="button" id="bulkApplyRatingBtn" class="primary">선택한 곡에 적용</button>
+    <button type="button" id="bulkAddToPlaylistBtn">📁 플레이리스트에 추가</button>
     <button type="button" id="bulkSelectAllBtn">전체 선택</button>
     <button type="button" id="bulkCancelBtn">선택 취소</button>
   </div>
@@ -877,6 +948,57 @@
     아직 추가한 곡이 없어요. 위 검색창에서 노래를 찾아 추가해보세요!
   </div>
 
+</div>
+
+<div class="wrap" id="playlistsView" style="display:none;">
+
+  <div id="playlistListPage">
+    <div class="list-header">
+      <h2 style="margin:0;font-size:16px;">📁 내 플레이리스트</h2>
+    </div>
+    <div class="row" style="margin-top:12px;">
+      <input id="newPlaylistNameInput" type="text" placeholder="새 플레이리스트 이름" />
+      <button type="button" id="createPlaylistBtn" class="logout-btn" style="flex:0 0 auto;">만들기</button>
+    </div>
+    <div id="playlistCards" class="playlist-card-list" style="margin-top:14px;"></div>
+    <div id="playlistsEmptyState" class="empty-state" style="display:none;">
+      아직 만든 플레이리스트가 없어요. 위에서 이름을 입력해 새로 만들어보세요!
+    </div>
+  </div>
+
+  <div id="playlistDetailPage" style="display:none;">
+    <button type="button" id="backToPlaylistsBtn" class="back-link">← 목록으로</button>
+    <div class="list-header" style="margin-top:10px;">
+      <h2 id="playlistDetailName" style="margin:0;font-size:16px;"></h2>
+      <button type="button" id="deletePlaylistBtn" class="danger-outline-btn">삭제</button>
+    </div>
+    <div id="playlistDetailSongs" class="song-list" style="margin-top:10px;"></div>
+    <div id="playlistDetailEmpty" class="empty-state" style="display:none;">
+      아직 담긴 곡이 없어요. 홈 화면에서 "☑️ 선택"으로 곡을 골라 이 플레이리스트에 담아보세요.
+    </div>
+  </div>
+
+</div>
+
+<nav id="bottomTabBar" class="bottom-tab-bar">
+  <button type="button" class="tab-btn active" data-view="home">
+    <span class="tab-icon">🏠</span><span class="tab-label">홈</span>
+  </button>
+  <button type="button" class="tab-btn" data-view="playlists">
+    <span class="tab-icon">📁</span><span class="tab-label">플레이리스트</span>
+  </button>
+</nav>
+
+<div id="playlistPickerOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:100;align-items:center;justify-content:center;padding:20px;">
+  <div style="width:100%;max-width:420px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;">
+    <div style="font-weight:700;margin-bottom:10px;">어느 플레이리스트에 추가할까요?</div>
+    <div class="row">
+      <input id="pickerNewPlaylistInput" type="text" placeholder="새 플레이리스트 이름" />
+      <button type="button" id="pickerCreateBtn" class="logout-btn" style="flex:0 0 auto;">만들기</button>
+    </div>
+    <div id="pickerPlaylistList" class="playlist-card-list" style="margin-top:10px;max-height:280px;overflow-y:auto;"></div>
+    <button type="button" id="playlistPickerCloseBtn" class="logout-btn" style="width:100%;margin-top:12px;padding:10px;">취소</button>
+  </div>
 </div>
 
 <div id="toast" class="toast"></div>
@@ -1056,6 +1178,20 @@ function updateStickyOffset() {
 }
 window.addEventListener('load', updateStickyOffset);
 window.addEventListener('resize', updateStickyOffset);
+
+// ---------- 하단 탭바: 홈 / 플레이리스트 화면 전환 ----------
+document.querySelectorAll('#bottomTabBar .tab-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const view = btn.dataset.view;
+    document.querySelectorAll('#bottomTabBar .tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+    document.getElementById('homeView').style.display = view === 'home' ? 'block' : 'none';
+    document.getElementById('playlistsView').style.display = view === 'playlists' ? 'block' : 'none';
+    if (view === 'playlists') {
+      try { await loadPlaylists(); } catch (err) { toast('플레이리스트 목록을 불러오지 못했어요'); }
+      renderPlaylistCards();
+    }
+  });
+});
 
 // ---------- iTunes 검색 ----------
 // 일부 통신사/공유기 네트워크에서 브라우저가 itunes.apple.com에 직접 접속하지 못하는 경우가 있어서,
@@ -2191,7 +2327,8 @@ const SONG_FIELD_MAP = {
   previewUrl: 'preview_url',
   youtubeUrl: 'youtube_url',
   source: 'source',
-  matchDismissed: 'match_dismissed'
+  matchDismissed: 'match_dismissed',
+  playlistIds: 'playlist_ids'
 };
 
 function mapItemToRow(fields) {
@@ -2264,6 +2401,63 @@ async function bulkUpdateRating(ids, rating) {
   const row = mapItemToRow({ rating: rating });
   const { error } = await supabaseClient.from('songs').update(row).in('id', ids);
   if (error) throw new Error(error.message);
+}
+
+// ---------- 플레이리스트(곡 모음집) ----------
+let currentPlaylists = [];
+
+async function loadPlaylists() {
+  if (!isConfigured) return;
+  const { data, error } = await supabaseClient
+    .from('playlists')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  currentPlaylists = data || [];
+}
+
+async function createPlaylist(name) {
+  if (!isConfigured) throw new Error('Supabase 설정이 완료되지 않았어요');
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  if (!user) throw new Error('로그인 세션을 확인하지 못했어요. 새로고침 후 다시 시도해주세요.');
+  const { data, error } = await supabaseClient
+    .from('playlists')
+    .insert({ user_id: user.id, name })
+    .select('*')
+    .single();
+  if (error) throw new Error(error.message);
+  currentPlaylists.unshift(data);
+  return data;
+}
+
+async function deletePlaylistById(id) {
+  const { error } = await supabaseClient.from('playlists').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+  currentPlaylists = currentPlaylists.filter(p => p.id !== id);
+}
+
+// currentSongs에 이미 올라와 있는 최신 상태를 기준으로 playlist_ids 배열을 갱신함(곡별로 한 번씩 update 요청)
+async function addSongsToPlaylist(songIds, playlistId) {
+  if (!isConfigured) throw new Error('Supabase 설정이 완료되지 않았어요');
+  const targets = currentSongs.filter(s => songIds.includes(s.id));
+  await Promise.all(targets.map(async s => {
+    const idSet = new Set(s.playlistIds || []);
+    idSet.add(playlistId);
+    const newIds = [...idSet];
+    const { error } = await supabaseClient.from('songs').update({ playlist_ids: newIds }).eq('id', s.id);
+    if (error) throw new Error(error.message);
+    s.playlistIds = newIds; // 다시 불러오지 않아도 화면이 바로 맞게 갱신되도록 로컬 상태도 같이 갱신
+  }));
+}
+
+async function removeSongFromPlaylist(songId, playlistId) {
+  if (!isConfigured) throw new Error('Supabase 설정이 완료되지 않았어요');
+  const s = currentSongs.find(x => x.id === songId);
+  if (!s) return;
+  const newIds = (s.playlistIds || []).filter(id => id !== playlistId);
+  const { error } = await supabaseClient.from('songs').update({ playlist_ids: newIds }).eq('id', songId);
+  if (error) throw new Error(error.message);
+  s.playlistIds = newIds;
 }
 
 let currentSongs = [];
@@ -2346,6 +2540,68 @@ document.getElementById('bulkApplyRatingBtn').addEventListener('click', async ()
     btn.disabled = false;
     btn.textContent = '선택한 곡에 적용';
   }
+});
+
+// ---------- 선택한 곡들을 플레이리스트에 담기(고르기 팝업) ----------
+function renderPlaylistPickerList() {
+  const listEl = document.getElementById('pickerPlaylistList');
+  if (!currentPlaylists.length) {
+    listEl.innerHTML = '<div class="sugg-empty" style="font-size:12px;">아직 만든 플레이리스트가 없어요. 위에서 새로 만들어주세요.</div>';
+    return;
+  }
+  listEl.innerHTML = currentPlaylists.map(p => {
+    const count = currentSongs.filter(s => (s.playlistIds || []).includes(p.id)).length;
+    return `<button type="button" class="picker-playlist-row" data-id="${p.id}">
+      <span>${escapeHtml(p.name)}</span><span class="playlist-card-count">${count}곡</span>
+    </button>`;
+  }).join('');
+  [...listEl.querySelectorAll('.picker-playlist-row')].forEach(btn => {
+    btn.addEventListener('click', () => addSelectedSongsToPlaylist(btn.dataset.id));
+  });
+}
+
+async function addSelectedSongsToPlaylist(playlistId) {
+  if (!bulkSelectedIds.size) return;
+  try {
+    const ids = [...bulkSelectedIds];
+    await addSongsToPlaylist(ids, playlistId);
+    const playlist = currentPlaylists.find(p => p.id === playlistId);
+    toast(`${ids.length}곡을 "${playlist ? playlist.name : ''}"에 담았어요`);
+    document.getElementById('playlistPickerOverlay').style.display = 'none';
+    bulkSelectedIds.clear();
+    updateBulkBar();
+    renderFilteredList();
+  } catch (err) {
+    toast('추가 실패: ' + err.message);
+  }
+}
+
+document.getElementById('bulkAddToPlaylistBtn').addEventListener('click', async () => {
+  if (!bulkSelectedIds.size) { toast('먼저 곡을 선택해주세요'); return; }
+  try { await loadPlaylists(); } catch (err) { toast('플레이리스트 목록을 불러오지 못했어요'); return; }
+  renderPlaylistPickerList();
+  document.getElementById('playlistPickerOverlay').style.display = 'flex';
+});
+
+document.getElementById('playlistPickerCloseBtn').addEventListener('click', () => {
+  document.getElementById('playlistPickerOverlay').style.display = 'none';
+});
+
+document.getElementById('pickerCreateBtn').addEventListener('click', async () => {
+  const input = document.getElementById('pickerNewPlaylistInput');
+  const name = input.value.trim();
+  if (!name) { toast('플레이리스트 이름을 입력해주세요'); return; }
+  try {
+    const playlist = await createPlaylist(name);
+    input.value = '';
+    renderPlaylistPickerList();
+    await addSelectedSongsToPlaylist(playlist.id);
+  } catch (err) {
+    toast('만들기 실패: ' + err.message);
+  }
+});
+document.getElementById('pickerNewPlaylistInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); document.getElementById('pickerCreateBtn').click(); }
 });
 
 function yearOf(item) {
@@ -2520,14 +2776,20 @@ function renderFilteredList() {
     return header + renderSongCard(item);
   }).join('');
 
-  [...listEl.querySelectorAll('.bulk-check')].forEach(cb => {
+  wireSongCardActions(listEl);
+}
+
+// 곡 카드의 버튼들(선택/삭제/수정/재생/플레이리스트에서 빼기)에 동작을 연결.
+// 홈 목록과 플레이리스트 상세 화면이 같은 카드 마크업을 쓰기 때문에 공통 함수로 뺌.
+function wireSongCardActions(containerEl) {
+  [...containerEl.querySelectorAll('.bulk-check')].forEach(cb => {
     cb.addEventListener('change', () => {
       if (cb.checked) bulkSelectedIds.add(cb.dataset.id); else bulkSelectedIds.delete(cb.dataset.id);
       updateBulkBar();
     });
   });
 
-  [...listEl.querySelectorAll('.del-btn')].forEach(btn => {
+  [...containerEl.querySelectorAll('.del-btn')].forEach(btn => {
     btn.addEventListener('click', async () => {
       if (!confirm('이 곡을 삭제할까요?')) return;
       try {
@@ -2539,21 +2801,33 @@ function renderFilteredList() {
     });
   });
 
-  [...listEl.querySelectorAll('.edit-btn')].forEach(btn => {
+  [...containerEl.querySelectorAll('.remove-from-playlist-btn')].forEach(btn => {
+    btn.addEventListener('click', async () => {
+      try {
+        await removeSongFromPlaylist(btn.dataset.id, btn.dataset.playlistId);
+        renderPlaylistDetailSongs();
+        renderPlaylistCards();
+      } catch (err) {
+        toast('제거 실패: ' + err.message);
+      }
+    });
+  });
+
+  [...containerEl.querySelectorAll('.edit-btn')].forEach(btn => {
     btn.addEventListener('click', () => {
       const item = currentSongs.find(it => it.id === btn.dataset.id);
       if (item) openEditForm(item);
     });
   });
 
-  [...listEl.querySelectorAll('.yt-play-btn')].forEach(btn => {
+  [...containerEl.querySelectorAll('.yt-play-btn')].forEach(btn => {
     btn.addEventListener('click', () => {
       const item = currentSongs.find(it => it.id === btn.dataset.id);
       if (item) openYoutubePlayer(item);
     });
   });
 
-  [...listEl.querySelectorAll('.preview-btn:not(.yt-play-btn)')].forEach(btn => {
+  [...containerEl.querySelectorAll('.preview-btn:not(.yt-play-btn)')].forEach(btn => {
     btn.addEventListener('click', async () => {
       if (btn.dataset.url) { togglePreview(btn.dataset.url); return; }
       // 업데이트 이전에 추가돼서 previewUrl이 저장 안 되어 있는 곡: 지금 검색해서 찾아보고, 찾으면 이후에도 쓰게 시트에 저장
@@ -2578,6 +2852,91 @@ function renderFilteredList() {
   });
 }
 
+// ---------- 플레이리스트 화면 ----------
+let currentPlaylistDetailId = null;
+
+function renderPlaylistCards() {
+  const listEl = document.getElementById('playlistCards');
+  const emptyEl = document.getElementById('playlistsEmptyState');
+  if (!currentPlaylists.length) {
+    listEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  listEl.innerHTML = currentPlaylists.map(p => {
+    const count = currentSongs.filter(s => (s.playlistIds || []).includes(p.id)).length;
+    return `<div class="playlist-card" data-id="${p.id}">
+      <span class="playlist-card-name">${escapeHtml(p.name)}</span>
+      <span class="playlist-card-count">${count}곡</span>
+    </div>`;
+  }).join('');
+  [...listEl.querySelectorAll('.playlist-card')].forEach(el => {
+    el.addEventListener('click', () => openPlaylistDetail(el.dataset.id));
+  });
+}
+
+function openPlaylistDetail(playlistId) {
+  const playlist = currentPlaylists.find(p => p.id === playlistId);
+  if (!playlist) return;
+  currentPlaylistDetailId = playlistId;
+  document.getElementById('playlistListPage').style.display = 'none';
+  document.getElementById('playlistDetailPage').style.display = 'block';
+  document.getElementById('playlistDetailName').textContent = playlist.name;
+  renderPlaylistDetailSongs();
+}
+
+function backToPlaylistList() {
+  currentPlaylistDetailId = null;
+  document.getElementById('playlistDetailPage').style.display = 'none';
+  document.getElementById('playlistListPage').style.display = 'block';
+  renderPlaylistCards(); // 그 사이 곡이 추가/제거됐을 수 있어서 개수 다시 반영
+}
+
+function renderPlaylistDetailSongs() {
+  const songs = currentSongs.filter(s => (s.playlistIds || []).includes(currentPlaylistDetailId));
+  const listEl = document.getElementById('playlistDetailSongs');
+  const emptyEl = document.getElementById('playlistDetailEmpty');
+  if (!songs.length) {
+    listEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  listEl.innerHTML = songs.map(item => renderSongCard(item, { removeFromPlaylistId: currentPlaylistDetailId })).join('');
+  wireSongCardActions(listEl);
+}
+
+document.getElementById('createPlaylistBtn').addEventListener('click', async () => {
+  const input = document.getElementById('newPlaylistNameInput');
+  const name = input.value.trim();
+  if (!name) { toast('플레이리스트 이름을 입력해주세요'); return; }
+  try {
+    await createPlaylist(name);
+    input.value = '';
+    renderPlaylistCards();
+  } catch (err) {
+    toast('만들기 실패: ' + err.message);
+  }
+});
+document.getElementById('newPlaylistNameInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); document.getElementById('createPlaylistBtn').click(); }
+});
+
+document.getElementById('backToPlaylistsBtn').addEventListener('click', backToPlaylistList);
+
+document.getElementById('deletePlaylistBtn').addEventListener('click', async () => {
+  const playlist = currentPlaylists.find(p => p.id === currentPlaylistDetailId);
+  if (!playlist) return;
+  if (!confirm(`"${playlist.name}" 플레이리스트를 삭제할까요? (담긴 곡은 그대로 남아요)`)) return;
+  try {
+    await deletePlaylistById(currentPlaylistDetailId);
+    backToPlaylistList();
+  } catch (err) {
+    toast('삭제 실패: ' + err.message);
+  }
+});
+
 // previewUrl이 없는(업데이트 이전에 추가된) 곡을 제목+가수로 다시 검색해서 미리듣기 URL을 찾아봄
 async function resolvePreviewUrl(item) {
   const term = [item.artist, item.title].filter(Boolean).join(' ').trim();
@@ -2597,7 +2956,8 @@ const PLACEHOLDER_ART = 'data:image/svg+xml;utf8,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="#333"/><text x="50" y="58" font-size="34" text-anchor="middle" fill="#888">♪</text></svg>'
 );
 
-function renderSongCard(item) {
+function renderSongCard(item, opts) {
+  opts = opts || {};
   const year = item.releaseDate ? String(item.releaseDate).slice(0,4) : '';
   const stars = item.rating ? '★'.repeat(+item.rating) : '';
   const nationLabel = item.nationality === 'domestic' ? '국내' : (item.nationality === 'international' ? (item.country || '해외') : '');
@@ -2612,6 +2972,10 @@ function renderSongCard(item) {
   const bulkCheckbox = bulkModeActive
     ? `<input type="checkbox" class="bulk-check" data-id="${item.id}" ${bulkSelectedIds.has(item.id) ? 'checked' : ''} />`
     : '';
+  // 플레이리스트 상세 화면에서는 곡 자체를 삭제하는 게 아니라 "이 플레이리스트에서만 빼기"가 되어야 함
+  const removeBtn = opts.removeFromPlaylistId
+    ? `<button class="remove-from-playlist-btn" data-id="${item.id}" data-playlist-id="${escapeHtml(opts.removeFromPlaylistId)}" title="플레이리스트에서 빼기">✕</button>`
+    : `<button class="del-btn" data-id="${item.id}">✕</button>`;
   return `<div class="song-card">
     ${bulkCheckbox}
     <img src="${item.artworkUrl || PLACEHOLDER_ART}" loading="lazy" onerror="this.onerror=null;this.src='${PLACEHOLDER_ART}'" />
@@ -2625,7 +2989,7 @@ function renderSongCard(item) {
     <div class="song-actions">
       ${ytBtn || previewBtn}
       <button class="edit-btn" data-id="${item.id}" title="수정">✏️</button>
-      <button class="del-btn" data-id="${item.id}">✕</button>
+      ${removeBtn}
     </div>
   </div>`;
 }

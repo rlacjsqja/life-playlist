@@ -46,3 +46,36 @@ create policy "update own songs" on public.songs
 drop policy if exists "delete own songs" on public.songs;
 create policy "delete own songs" on public.songs
   for delete using (auth.uid() = user_id);
+
+-- 플레이리스트: 저장한 곡들을 모아 담는 모음집
+create table if not exists public.playlists (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null default '',
+  created_at timestamptz not null default now()
+);
+
+create index if not exists playlists_user_id_idx on public.playlists(user_id);
+
+alter table public.playlists enable row level security;
+
+drop policy if exists "select own playlists" on public.playlists;
+create policy "select own playlists" on public.playlists
+  for select using (auth.uid() = user_id);
+
+drop policy if exists "insert own playlists" on public.playlists;
+create policy "insert own playlists" on public.playlists
+  for insert with check (auth.uid() = user_id);
+
+drop policy if exists "update own playlists" on public.playlists;
+create policy "update own playlists" on public.playlists
+  for update using (auth.uid() = user_id);
+
+drop policy if exists "delete own playlists" on public.playlists;
+create policy "delete own playlists" on public.playlists
+  for delete using (auth.uid() = user_id);
+
+-- 곡 하나가 여러 플레이리스트에 동시에 들어갈 수 있어서, 곡 쪽에 소속 플레이리스트 id 배열을 둠
+-- (플레이리스트별 곡 목록 조회는 songs 테이블에서 이 배열에 해당 id가 포함된 행만 걸러서 봄)
+alter table public.songs add column if not exists playlist_ids uuid[] not null default '{}';
+create index if not exists songs_playlist_ids_idx on public.songs using gin(playlist_ids);

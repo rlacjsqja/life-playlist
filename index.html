@@ -40,7 +40,12 @@
     overflow-x:hidden;
     margin:0;
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
-    background:var(--bg);
+    background-color:var(--bg);
+    /* 레코드판 홈(vinyl groove) 느낌의 아주 옅은 동심원 텍스처 - 사진 없이 CSS만으로,
+       텍스트 가독성에 방해되지 않을 정도로만 "공간의 질감"을 은은하게 비침 */
+    background-image:repeating-radial-gradient(circle at 88% 0%,
+      rgba(255,255,255,.025) 0px, rgba(255,255,255,.025) 1px,
+      transparent 1px, transparent 14px);
     color:var(--text);
     padding-bottom:90px;
   }

@@ -397,6 +397,32 @@
   .song-list.density-small .edit-btn{font-size:12px;padding:2px;}
   .song-list.density-small .preview-btn{font-size:10px;padding:2px 6px;}
 
+  /* 앨범 자켓만 격자로 보기 */
+  .song-list.density-cover{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(96px, 1fr));
+    gap:16px 10px;
+  }
+  .song-list.density-cover .song-card{
+    position:relative;
+    flex-direction:column;
+    align-items:stretch;
+    background:none;
+    border:none;
+    padding:0;
+    gap:4px;
+  }
+  .song-list.density-cover .song-card img{
+    width:100%;height:auto;aspect-ratio:1/1;border-radius:10px;object-fit:cover;
+  }
+  .song-list.density-cover .song-main{width:100%;}
+  .song-list.density-cover .song-text{width:100%;}
+  .song-list.density-cover .song-title{font-size:11.5px;text-align:center;}
+  .song-list.density-cover .song-sub{display:none;}
+  .song-list.density-cover .song-memo{display:none;}
+  .song-list.density-cover .song-actions{justify-content:center;gap:10px;}
+  .song-list.density-cover .bulk-check{position:absolute;top:6px;left:6px;z-index:2;}
+
   .empty-state{
     text-align:center;
     color:var(--text-dim);
@@ -922,6 +948,7 @@
         <button type="button" class="density-tab" data-density="large" title="크게">큼</button>
         <button type="button" class="density-tab active" data-density="medium" title="중간">중간</button>
         <button type="button" class="density-tab" data-density="small" title="작게">작음</button>
+        <button type="button" class="density-tab" data-density="cover" title="앨범 자켓만">💿 앨범</button>
       </div>
       <button type="button" class="density-tab" id="bulkModeBtn" title="여러 곡을 선택해서 평점을 한번에 바꿀 수 있어요">☑️ 선택</button>
       <span class="count-pill" id="countPill">0곡</span>
@@ -940,7 +967,7 @@
       <option value="__clear">평점 없음으로</option>
     </select>
     <button type="button" id="bulkApplyRatingBtn" class="primary">선택한 곡에 적용</button>
-    <button type="button" id="bulkAddToPlaylistBtn">📁 플레이리스트에 추가</button>
+    <button type="button" id="bulkAddToPlaylistBtn">💿 플레이리스트에 추가</button>
     <button type="button" id="bulkSelectAllBtn">전체 선택</button>
     <button type="button" id="bulkCancelBtn">선택 취소</button>
   </div>
@@ -956,7 +983,7 @@
 
   <div id="playlistListPage">
     <div class="list-header">
-      <h2 style="margin:0;font-size:16px;">📁 내 플레이리스트</h2>
+      <h2 style="margin:0;font-size:16px;">💿 내 플레이리스트</h2>
     </div>
     <div class="row" style="margin-top:12px;">
       <input id="newPlaylistNameInput" type="text" placeholder="새 플레이리스트 이름" />
@@ -987,7 +1014,7 @@
     <span class="tab-icon">🏠</span><span class="tab-label">홈</span>
   </button>
   <button type="button" class="tab-btn" data-view="playlists">
-    <span class="tab-icon">📁</span><span class="tab-label">플레이리스트</span>
+    <span class="tab-icon">💿</span><span class="tab-label">플레이리스트</span>
   </button>
 </nav>
 
@@ -2709,9 +2736,11 @@ function applyDensity(density) {
   currentDensity = density;
   localStorage.setItem('playlistDensity', density);
   songListEl.className = 'song-list' + (density === 'medium' ? '' : ' density-' + density);
-  document.querySelectorAll('.density-tab').forEach(b => b.classList.toggle('active', b.dataset.density === density));
+  document.querySelectorAll('#densityTabs .density-tab').forEach(b => b.classList.toggle('active', b.dataset.density === density));
 }
-document.querySelectorAll('.density-tab').forEach(btn => {
+// #densityTabs 안의 버튼만 대상으로 함 - bulkModeBtn도 같은 시각 스타일(density-tab 클래스)을 쓰지만
+// 보기 방식 버튼이 아니라서 여기 포함되면 "선택" 누를 때마다 보기 방식이 초기화되는 버그가 생김
+document.querySelectorAll('#densityTabs .density-tab').forEach(btn => {
   btn.addEventListener('click', () => applyDensity(btn.dataset.density));
 });
 applyDensity(currentDensity);

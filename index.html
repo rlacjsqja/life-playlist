@@ -18,6 +18,7 @@
     --accent-2:#ff7cb0;
     --danger:#ff6b6b;
     --radius:14px;
+    --gold:#f0c975; /* 평점 5점(명예의 전당) 곡 강조용 */
   }
   *{box-sizing:border-box;}
   html{
@@ -351,6 +352,11 @@
   .song-card img{
     width:38px;height:38px;border-radius:8px;background:#333;flex-shrink:0;
   }
+  /* 평점 5점(내 인생 최고의 곡) 표시 - 앨범아트에 금테를 둘러서 명예의 전당처럼 보이게 함 */
+  .song-card img.hof-art{
+    border:2px solid var(--gold);
+    box-shadow:0 0 0 3px rgba(240,201,117,.22);
+  }
   .song-main{flex:1;min-width:0;}
   .song-text{display:flex;flex-direction:column;min-width:0;}
   .song-title{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -397,11 +403,15 @@
   .song-list.density-small .edit-btn{font-size:12px;padding:2px;}
   .song-list.density-small .preview-btn{font-size:10px;padding:2px 6px;}
 
-  /* 앨범 자켓만 격자로 보기 */
+  /* 앨범 자켓만 격자로 보기 - 레코드 선반에 자켓을 진열해둔 느낌의 우드톤 배경 */
   .song-list.density-cover{
     display:grid;
     grid-template-columns:repeat(auto-fill, minmax(96px, 1fr));
-    gap:16px 10px;
+    gap:20px 10px;
+    padding:16px 10px;
+    border-radius:16px;
+    background:linear-gradient(180deg,#2a1f14,#1c140c);
+    border:1px solid #3a2a18;
   }
   .song-list.density-cover .song-card{
     position:relative;
@@ -414,6 +424,7 @@
   }
   .song-list.density-cover .song-card img{
     width:100%;height:auto;aspect-ratio:1/1;border-radius:10px;object-fit:cover;
+    box-shadow:0 10px 14px -6px rgba(0,0,0,.6);
   }
   .song-list.density-cover .song-main{width:100%;}
   .song-list.density-cover .song-text{width:100%;}
@@ -3018,9 +3029,10 @@ function renderSongCard(item, opts) {
   const removeBtn = opts.removeFromPlaylistId
     ? `<button class="remove-from-playlist-btn" data-id="${item.id}" data-playlist-id="${escapeHtml(opts.removeFromPlaylistId)}" title="플레이리스트에서 빼기">✕</button>`
     : `<button class="del-btn" data-id="${item.id}">✕</button>`;
+  const isHallOfFame = +item.rating === 5; // 평점 5점은 명예의 전당처럼 금테를 둘러 강조
   return `<div class="song-card">
     ${bulkCheckbox}
-    <img src="${item.artworkUrl || PLACEHOLDER_ART}" loading="lazy" onerror="this.onerror=null;this.src='${PLACEHOLDER_ART}'" />
+    <img class="${isHallOfFame ? 'hof-art' : ''}" src="${item.artworkUrl || PLACEHOLDER_ART}" loading="lazy" onerror="this.onerror=null;this.src='${PLACEHOLDER_ART}'" />
     <div class="song-main">
       <div class="song-text">
         <div class="song-title">${escapeHtml(item.title)} ${stars ? '· ' + stars : ''}</div>

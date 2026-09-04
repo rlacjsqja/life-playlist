@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>내 인생 플레이리스트</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap" rel="stylesheet" />
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <style>
   :root{
@@ -362,7 +364,14 @@
   .song-text{display:flex;flex-direction:column;min-width:0;}
   .song-title{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .song-sub{font-size:11px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
-  .song-memo{font-size:10.5px;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  /* 메모는 손글씨 느낌 서체로 - 곡에 얽힌 기억을 일기처럼 남긴 듯한 느낌을 주기 위함 */
+  .song-memo{
+    font-family:'Nanum Pen Script', cursive;
+    font-size:16px;
+    line-height:1;
+    color:var(--accent);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
   .song-actions{display:flex;align-items:center;gap:2px;flex-shrink:0;}
   .del-btn{
     background:none;border:none;color:var(--text-dim);
@@ -389,7 +398,7 @@
   .song-list.density-large .song-card img{width:56px;height:56px;border-radius:10px;}
   .song-list.density-large .song-title{font-size:15px;}
   .song-list.density-large .song-sub{font-size:12.5px;}
-  .song-list.density-large .song-memo{font-size:12px;margin-top:2px;}
+  .song-list.density-large .song-memo{font-size:19px;margin-top:2px;}
   .song-list.density-large .del-btn{font-size:18px;}
   .song-list.density-large .edit-btn{font-size:15px;}
 
@@ -663,7 +672,7 @@
       </div>
     </div>
     <h1>🎵 내 인생 플레이리스트</h1>
-    <p>제목이나 가수, 앨범명을 입력하면 자동으로 정보를 채워드려요</p>
+    <p>한때 사랑했고, 여전히 사랑하는 음악을 기억하는 공간</p>
   </header>
   <div class="wrap">
     <div class="search-box">
@@ -684,6 +693,7 @@
         ⚠️ <strong><span id="inAppBrowserName"></span> 안의 브라우저</strong>에서는 구글 로그인이 안 될 수 있어요. 화면의 메뉴(⋮ 또는 공유 아이콘)에서 <strong>"다른 브라우저로 열기"</strong>를 눌러 Chrome이나 Safari로 열면 정상적으로 로그인돼요.
         <button id="copyLinkBtn" type="button" style="margin:4px 0 0;background:none;border:1px solid var(--border);color:var(--text-dim);padding:3px 8px;border-radius:6px;font-size:11px;cursor:pointer;">🔗 이 링크 복사하기</button>
       </li>
+      <li>검색창에 제목이나 가수, 앨범명을 입력하면 자동으로 정보를 채워드려요.</li>
       <li>로그인해야 모든 기기에서 같은 목록을 볼 수 있어요. 로그인하지 않으면 이 기기에서만 보여요.</li>
       <li>제목이나 가수 이름을 일부만 입력해도 자동으로 추천해드려요.</li>
       <li>약간의 오타나 띄어쓰기 차이는 자동으로 보정하지만, 너무 큰 오타는 못 잡을 수 있어요.</li>
@@ -720,7 +730,7 @@
       <input id="manualArtwork" type="text" placeholder="앨범아트 이미지 URL (선택)" />
     </div>
     <div class="row">
-      <input id="manualMemo" type="text" placeholder="메모 (선택)" />
+      <input id="manualMemo" type="text" placeholder="이 곡과 얽힌 기억이 있나요? (선택)" />
       <select id="manualRating">
         <option value="">평점</option>
         <option value="5">★★★★★</option>
@@ -768,7 +778,7 @@
       <input id="ytYear" type="text" placeholder="발매년도 (선택)" />
     </div>
     <div class="row">
-      <input id="ytMemo" type="text" placeholder="메모 (선택)" />
+      <input id="ytMemo" type="text" placeholder="이 곡과 얽힌 기억이 있나요? (선택)" />
       <select id="ytRating">
         <option value="">평점</option>
         <option value="5">★★★★★</option>
@@ -835,7 +845,7 @@
       </div>
       <div class="s" id="previewSub"></div>
       <div class="preview-extra">
-        <input id="memoInput" type="text" placeholder="메모 (선택, 예: 첫 소개팅 때 들었던 노래)" />
+        <input id="memoInput" type="text" placeholder="이 곡과 얽힌 기억이 있나요? (선택, 예: 첫 소개팅 때 들었던 노래)" />
         <select id="ratingInput">
           <option value="">평점</option>
           <option value="5">★★★★★</option>
@@ -866,7 +876,7 @@
   </div>
 
   <div class="search-box" style="margin-top:20px;">
-    <input id="librarySearchInput" type="text" placeholder="🔍 내가 모은 곡 검색 (제목·가수·앨범·메모)" autocomplete="off" />
+    <input id="librarySearchInput" type="text" placeholder="🔍 내가 사랑한 노래 검색 (제목·가수·앨범·기억)" autocomplete="off" />
   </div>
 
   <div class="filter-row">
@@ -910,7 +920,7 @@
       <input id="editYear" type="text" placeholder="발매년도 (예: 2020)" />
     </div>
     <div class="row">
-      <input id="editMemo" type="text" placeholder="메모 (선택)" />
+      <input id="editMemo" type="text" placeholder="이 곡과 얽힌 기억이 있나요? (선택)" />
       <select id="editRating">
         <option value="">평점</option>
         <option value="5">★★★★★</option>
@@ -954,7 +964,7 @@
   </div>
 
   <div class="list-header">
-    <h2>내가 모은 곡들</h2>
+    <h2>내가 사랑한 노래들</h2>
     <div style="display:flex;align-items:center;gap:8px;">
       <div class="density-tabs" id="densityTabs">
         <button type="button" class="density-tab" data-density="large" title="크게">큼</button>
@@ -986,7 +996,7 @@
 
   <div id="songList" class="song-list"></div>
   <div id="emptyState" class="empty-state" style="display:none;">
-    아직 추가한 곡이 없어요. 위 검색창에서 노래를 찾아 추가해보세요!
+    아직 기억해둔 곡이 없어요. 사랑했던 노래 하나를 가장 먼저 남겨보세요.
   </div>
 
 </div>
@@ -1003,7 +1013,7 @@
     </div>
     <div id="playlistCards" class="playlist-card-list" style="margin-top:14px;"></div>
     <div id="playlistsEmptyState" class="empty-state" style="display:none;">
-      아직 만든 플레이리스트가 없어요. 위에서 이름을 입력해 새로 만들어보세요!
+      아직 만든 플레이리스트가 없어요. 사랑하는 노래들을 모아 나만의 이야기를 만들어보세요.
     </div>
   </div>
 
@@ -1817,7 +1827,7 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
       source: 'search'
     });
     await postToSheet(payload);
-    toast('플레이리스트에 추가했어요 🎧');
+    toast('내가 사랑한 노래로 담았어요 🎧');
     resetForm();
     loadSongs();
   } catch (err) {
@@ -1878,7 +1888,7 @@ document.getElementById('manualSaveBtn').addEventListener('click', async () => {
       source: 'manual'
     };
     const addResult = await postToSheet(payload);
-    toast('플레이리스트에 추가했어요 🎧');
+    toast('내가 사랑한 노래로 담았어요 🎧');
     ['manualTitle','manualArtist','manualAlbum','manualYear','manualGenre','manualArtwork','manualMemo']
       .forEach(id => document.getElementById(id).value = '');
     document.getElementById('manualNationality').value = '';
@@ -2070,7 +2080,7 @@ document.getElementById('ytSaveBtn').addEventListener('click', async () => {
       source: 'youtube'
     };
     await postToSheet(payload);
-    toast('플레이리스트에 추가했어요 🎧');
+    toast('내가 사랑한 노래로 담았어요 🎧');
     ['ytUrlInput','ytTitle','ytArtist','ytAlbum','ytYear','ytMemo'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('ytNationality').value = '';
     document.getElementById('ytRating').value = '';
@@ -2242,7 +2252,7 @@ document.getElementById('artistAddSelectedBtn').addEventListener('click', async 
       };
     });
     await bulkAddSongs(fieldsArray);
-    toast(`${fieldsArray.length}곡을 한번에 추가했어요 🎧`);
+    toast(`${fieldsArray.length}곡을 한번에 담았어요 🎧`);
     artistSelectedIdx.clear();
     document.getElementById('artistBulkRating').value = '';
     document.getElementById('artistSearchInput').value = '';
@@ -2815,7 +2825,7 @@ function renderFilteredList() {
     emptyEl.style.display = 'block';
     emptyEl.textContent = currentSongs.length
       ? '해당 조건에 맞는 곡이 없어요.'
-      : '아직 추가한 곡이 없어요. 위 검색창에서 노래를 찾아 추가해보세요!';
+      : '아직 기억해둔 곡이 없어요. 사랑했던 노래 하나를 가장 먼저 남겨보세요.';
     return;
   }
   emptyEl.style.display = 'none';

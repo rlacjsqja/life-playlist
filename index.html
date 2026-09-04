@@ -2767,8 +2767,12 @@ function groupItemsByAlbum(items) {
 let currentAlbumGroups = new Map();
 
 function renderAlbumGroupCard(group, key) {
-  // 앨범에 곡이 하나뿐이면 기존 곡 카드와 완전히 동일하게 (재생/수정/삭제 버튼 그대로 노출)
-  if (group.songs.length === 1) return renderSongCard(group.songs[0]);
+  // 앨범에 곡이 하나뿐이어도 앨범 보기에서는 곡 제목 대신 앨범명을 보여줌(앨범명이 없으면 곡 제목으로 대체).
+  // 재생/수정/삭제 버튼은 기존 곡 카드와 동일하게 그대로 노출됨(subParts는 커버 보기에서 어차피 숨겨짐)
+  if (group.songs.length === 1) {
+    const only = group.songs[0];
+    return renderSongCard(Object.assign({}, only, { title: only.album || only.title }));
+  }
   const rep = group.songs[0];
   const count = group.songs.length;
   const isHallOfFame = group.songs.some(s => +s.rating === 5);

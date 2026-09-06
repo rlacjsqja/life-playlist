@@ -682,6 +682,27 @@
     font-size:12px;
     cursor:pointer;
   }
+  /* 명예의 전당(평점 5점) 진열장 - 내가 실제로 등록한 곡의 앨범 커버만 사용하므로 저작권 걱정 없이
+     "히스토리 월/월 오브 페임" 느낌을 냄. 5점 곡이 하나도 없으면 그냥 숨겨서 body의 레코드판
+     배경 텍스처가 대신 보이게 함(항상 뭔가는 보이도록 하는 안전장치) */
+  .hof-wall{padding:14px 0 2px;}
+  .hof-wall-label{
+    text-align:center;font-size:11px;letter-spacing:.14em;color:var(--text-dim);
+    text-transform:uppercase;margin-bottom:10px;
+  }
+  .hof-wall-track{
+    display:flex;gap:16px;overflow-x:auto;padding:6px 24px 12px;scrollbar-width:none;
+    -webkit-mask-image:linear-gradient(to right, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+    mask-image:linear-gradient(to right, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+  }
+  .hof-wall-track::-webkit-scrollbar{display:none;}
+  .hof-wall-item{
+    flex:0 0 auto;width:64px;height:64px;border-radius:4px;object-fit:cover;
+    background:var(--card);border:2px solid var(--gold);
+    box-shadow:0 3px 10px rgba(0,0,0,.4), 0 0 0 3px rgba(240,201,117,.18);
+  }
+  .hof-wall-track .hof-wall-item:nth-child(odd){transform:rotate(-2deg);}
+  .hof-wall-track .hof-wall-item:nth-child(even){transform:rotate(2deg);}
 </style>
 </head>
 <body>
@@ -706,6 +727,11 @@
       <div id="suggestions" class="suggestions"></div>
     </div>
   </div>
+</div>
+
+<div id="hofWall" class="hof-wall" style="display:none;">
+  <div class="hof-wall-label">🏆 명예의 전당</div>
+  <div id="hofWallTrack" class="hof-wall-track"></div>
 </div>
 
 <div class="wrap" id="homeView">
@@ -2885,7 +2911,33 @@ async function loadSongs() {
   }
 }
 
+// 명예의 전당(평점 5점) 진열장 갱신 - 내가 등록한 곡 중 평점 5점짜리 앨범 커버만 모아서 보여줌
+function renderHofWall() {
+  const wallEl = document.getElementById('hofWall');
+  const trackEl = document.getElementById('hofWallTrack');
+  if (!wallEl || !trackEl) return;
+  const seen = new Set();
+  const covers = [];
+  for (const it of currentSongs) {
+    if (+it.rating !== 5 || !it.artworkUrl) continue;
+    if (seen.has(it.artworkUrl)) continue;
+    seen.add(it.artworkUrl);
+    covers.push(it);
+    if (covers.length >= 16) break;
+  }
+  if (!covers.length) {
+    wallEl.style.display = 'none';
+    trackEl.innerHTML = '';
+    return;
+  }
+  wallEl.style.display = 'block';
+  trackEl.innerHTML = covers.map(it =>
+    `<img class="hof-wall-item" src="${escapeHtml(it.artworkUrl)}" alt="${escapeHtml(it.album || it.title)}" loading="lazy" onerror="this.onerror=null;this.style.display='none';" />`
+  ).join('');
+}
+
 function renderFilteredList() {
+  renderHofWall();
   const listEl = document.getElementById('songList');
   const emptyEl = document.getElementById('emptyState');
   const countPill = document.getElementById('countPill');

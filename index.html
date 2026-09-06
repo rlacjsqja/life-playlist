@@ -1911,12 +1911,16 @@ document.getElementById('previewPlayBtn').addEventListener('click', () => {
 // 다른 미리듣기(previewAudio)와는 별개의 오디오를 써서, 검색 중 미리듣기를 눌러도
 // BGM 재생목록/위치가 그대로 유지되고 잠깐 멈췄다가 이어짐.
 const bgmAudio = new Audio();
-bgmAudio.volume = 0.5;
+const BGM_VOLUME = 0.32; // 처음보다 살짝 낮춘 기본 음량
+const BGM_FADE_MS = 1200; // 곡 시작/전환 시 페이드 인/아웃에 걸리는 시간
+bgmAudio.volume = 0;
 let bgmEnabled = false;
 let bgmPausedForPreview = false;
 let bgmQueue = [];
 let bgmIndex = 0;
 let bgmAutoStartAttempted = false;
+let bgmFadeTimer = null;
+let bgmFadingOut = false;
 
 function shuffleArray(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
@@ -1931,14 +1935,52 @@ function buildBgmQueue() {
   bgmIndex = 0;
 }
 
-function playBgmCurrent() {
-  if (!bgmQueue.length) return Promise.resolve();
-  bgmAudio.src = bgmQueue[bgmIndex];
-  bgmAudio.currentTime = 0;
-  return bgmAudio.play();
+// 볼륨을 지정한 시간(ms)에 걸쳐 목표 값까지 서서히 바꿈 (페이드 인/아웃 공통으로 사용)
+function fadeBgm(toVolume, durationMs) {
+  return new Promise(resolve => {
+    if (bgmFadeTimer) { clearInterval(bgmFadeTimer); bgmFadeTimer = null; }
+    const steps = 20;
+    const stepTime = Math.max(16, durationMs / steps);
+    const startVolume = bgmAudio.volume;
+    const diff = toVolume - startVolume;
+    if (!diff) { resolve(); return; }
+    let i = 0;
+    bgmFadeTimer = setInterval(() => {
+      i++;
+      bgmAudio.volume = Math.min(1, Math.max(0, startVolume + diff * (i / steps)));
+      if (i >= steps) {
+        clearInterval(bgmFadeTimer);
+        bgmFadeTimer = null;
+        bgmAudio.volume = toVolume;
+        resolve();
+      }
+    }, stepTime);
+  });
 }
 
+function playBgmCurrent() {
+  if (!bgmQueue.length) return Promise.resolve();
+  bgmFadingOut = false;
+  bgmAudio.src = bgmQueue[bgmIndex];
+  bgmAudio.currentTime = 0;
+  bgmAudio.volume = 0;
+  return bgmAudio.play().then(() => fadeBgm(BGM_VOLUME, BGM_FADE_MS));
+}
+
+// 곡이 자연스럽게 끝나기 직전(BGM_FADE_MS만큼 남았을 때)부터 미리 볼륨을 서서히 줄여서
+// "뚝 끊기는" 느낌 없이 다음 곡으로 넘어가도록 함
+bgmAudio.addEventListener('timeupdate', () => {
+  if (!bgmEnabled || bgmFadingOut) return;
+  if (!isFinite(bgmAudio.duration) || bgmAudio.duration <= 0) return;
+  const remainingMs = (bgmAudio.duration - bgmAudio.currentTime) * 1000;
+  if (remainingMs > 0 && remainingMs <= BGM_FADE_MS) {
+    bgmFadingOut = true;
+    fadeBgm(0, remainingMs);
+  }
+});
+
 bgmAudio.addEventListener('ended', () => {
+  bgmFadingOut = false;
   if (!bgmEnabled || !bgmQueue.length) return;
   bgmIndex = (bgmIndex + 1) % bgmQueue.length;
   playBgmCurrent().catch(() => {});
@@ -1954,8 +1996,8 @@ function setBgmButtonState() {
 document.getElementById('bgmToggleBtn').addEventListener('click', () => {
   if (bgmEnabled) {
     bgmEnabled = false;
-    bgmAudio.pause();
     setBgmButtonState();
+    fadeBgm(0, 500).then(() => bgmAudio.pause());
     return;
   }
   buildBgmQueue();
@@ -2020,18 +2062,34 @@ async function loadDiscoverBatch() {
   emptyEl.style.display = 'block';
   emptyEl.textContent = '새로운 곡을 찾는 중...';
   try {
-    const term = DISCOVER_SEED_WORDS[Math.floor(Math.random() * DISCOVER_SEED_WORDS.length)];
-    const results = await searchItunes(term);
+    if (!isConfigured) throw new Error('Supabase 설정이 완료되지 않았어요');
     // 이미 내가 담아둔 곡은 굳이 다시 추천하지 않도록 걸러냄
     const existingKeys = new Set(currentSongs.map(s => normalizeForMatch(s.title) + '|' + normalizeForMatch(s.artist)));
-    const filtered = results.filter(r =>
-      r.previewUrl && !existingKeys.has(normalizeForMatch(r.title) + '|' + normalizeForMatch(r.artist))
-    );
-    discoverResults = shuffleArray(filtered).slice(0, 24);
+    const seenKeys = new Set();
+    const merged = [];
+    const triedWords = new Set();
+    // 검색어 하나로는 결과가 아예 없거나(원래 국내에 존재하지 않는 검색어 등) 다 걸러질 수 있어서,
+    // 후보가 너무 적으면 다른 검색어로 몇 번 더 시도해서 채움
+    for (let attempt = 0; attempt < 4 && merged.length < 8 && triedWords.size < DISCOVER_SEED_WORDS.length; attempt++) {
+      let term;
+      do {
+        term = DISCOVER_SEED_WORDS[Math.floor(Math.random() * DISCOVER_SEED_WORDS.length)];
+      } while (triedWords.has(term) && triedWords.size < DISCOVER_SEED_WORDS.length);
+      triedWords.add(term);
+      const results = await searchItunes(term);
+      for (const r of results) {
+        if (!r.previewUrl) continue;
+        const key = normalizeForMatch(r.title) + '|' + normalizeForMatch(r.artist);
+        if (existingKeys.has(key) || seenKeys.has(key)) continue;
+        seenKeys.add(key);
+        merged.push(r);
+      }
+    }
+    discoverResults = shuffleArray(merged).slice(0, 24);
     renderDiscoverList();
   } catch (err) {
     emptyEl.style.display = 'block';
-    emptyEl.textContent = '불러오지 못했어요. "다른 곡 보기"를 다시 눌러주세요.';
+    emptyEl.textContent = '불러오지 못했어요: ' + (err && err.message ? err.message : String(err));
   }
 }
 

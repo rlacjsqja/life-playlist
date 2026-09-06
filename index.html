@@ -1108,7 +1108,7 @@
     <button type="button" id="discoverShuffleBtn" class="logout-btn">🔀 다른 곡 보기</button>
   </div>
   <div class="hint" style="font-size:12px;color:var(--text-dim);margin-top:6px;">
-    장르별 실시간 인기차트에서 무작위로 뽑아본 곡들이에요. 미리듣기 해보고 마음에 들면 담아보세요.
+    애플 뮤직 실시간 인기차트에서 무작위로 뽑아본 곡들이에요. 미리듣기 해보고 마음에 들면 담아보세요.
   </div>
   <div id="discoverList" class="song-list" style="margin-top:12px;"></div>
   <div id="discoverEmptyState" class="empty-state" style="display:none;">새로운 곡을 찾는 중...</div>
@@ -1738,6 +1738,10 @@ function suggItemHtml(r, i) {
   const previewBtn = r.previewUrl
     ? `<button type="button" class="preview-btn sugg-preview-btn" data-url="${escapeHtml(r.previewUrl)}" title="미리듣기">▶</button>`
     : '';
+  // 유튜브 검색 결과는 30초 미리듣기 파일이 없는 대신, 영상 자체를 바로 재생해서 미리 들어볼 수 있게 함
+  const ytPreviewBtn = (r.source === 'youtube' && r.externalUrl)
+    ? `<button type="button" class="preview-btn sugg-yt-btn" data-idx="${i}" title="유튜브로 미리듣기">▶ YT</button>`
+    : '';
   return `<div class="sugg-item" data-idx="${i}">
     <img src="${r.artworkUrl || PLACEHOLDER_ART}" loading="lazy" onerror="this.onerror=null;this.src='${PLACEHOLDER_ART}'" />
     <div class="sugg-text" style="flex:1;">
@@ -1745,7 +1749,7 @@ function suggItemHtml(r, i) {
       <div class="sugg-sub">${[r.artist, r.album, year].filter(Boolean).map(escapeHtml).join(' · ')}</div>
       <div class="badge-row">${srcBadge}${typeBadge}</div>
     </div>
-    ${previewBtn}
+    ${previewBtn}${ytPreviewBtn}
   </div>`;
 }
 
@@ -1756,6 +1760,14 @@ function wireSuggItem(el) {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       togglePreview(btn.dataset.url);
+    });
+  }
+  const ytBtn = el.querySelector('.sugg-yt-btn');
+  if (ytBtn) {
+    ytBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const r = currentResults[+ytBtn.dataset.idx];
+      if (r) previewYoutubeSuggestion(r.externalUrl);
     });
   }
 }
@@ -2043,15 +2055,11 @@ async function tryAutoStartBgm() {
   setBgmButtonState();
 }
 
-// ---------- 새노래 탐색: 검색이 아니라 "장르별 실시간 인기차트"에서 곡을 뽑아 보여줌 ----------
-// 내가 뭔가를 검색해서 나온 결과가 아니라, 아이튠즈의 실제 장르별 인기차트에서 무작위로
+// ---------- 새노래 탐색: 검색이 아니라 애플 뮤직 "실시간 인기차트"에서 곡을 뽑아 보여줌 ----------
+// 내가 뭔가를 검색해서 나온 결과가 아니라, 애플의 공식 실시간 Top 100 차트에서 무작위로
 // 골라 보여주는 방식이라 "지금 사람들이 많이 듣는, 내가 몰랐던 곡"을 발견하는 느낌에 가까움.
-const DISCOVER_GENRES = [
-  { id: 14, name: '팝' }, { id: 15, name: 'R&B/소울' }, { id: 17, name: '댄스' },
-  { id: 18, name: '힙합' }, { id: 20, name: '얼터너티브' }, { id: 21, name: '록' },
-  { id: 24, name: '레게' }, { id: 6, name: '컨트리' }, { id: 11, name: '재즈' },
-  { id: 1153, name: 'K-Pop' }
-];
+// (참고: 예전엔 장르별로 나눠서 가져오려 했지만, 애플이 장르별 차트 피드는 더 이상 서비스하지
+// 않아서 지금은 장르 구분 없는 국가 전체 Top 100에서 무작위로 골라옴)
 let discoverResults = [];
 
 async function loadDiscoverBatch() {
@@ -2066,20 +2074,13 @@ async function loadDiscoverBatch() {
     const existingKeys = new Set(currentSongs.map(s => normalizeForMatch(s.title) + '|' + normalizeForMatch(s.artist)));
     const seenKeys = new Set();
     const merged = [];
-    const triedGenres = new Set();
     let rawResultCount = 0;
     let lastIssue = '';
-    // 장르 하나만 봐서는 겹치거나(이미 담아둔 곡) 미리듣기가 없는 곡뿐일 수 있어서,
-    // 후보가 너무 적으면 다른 장르 차트로 몇 번 더 시도해서 채움.
-    for (let attempt = 0; attempt < 4 && merged.length < 8 && triedGenres.size < DISCOVER_GENRES.length; attempt++) {
-      let genre;
-      do {
-        genre = DISCOVER_GENRES[Math.floor(Math.random() * DISCOVER_GENRES.length)];
-      } while (triedGenres.has(genre.id) && triedGenres.size < DISCOVER_GENRES.length);
-      triedGenres.add(genre.id);
+    // 애플 차트 서버가 가끔 일시적으로 응답이 늦거나 실패할 때(504 등)를 대비해 몇 번 재시도함
+    for (let attempt = 0; attempt < 3 && merged.length < 8; attempt++) {
       let data;
       try {
-        const url = edgeFunctionUrl('itunes-charts') + '?genre=' + genre.id + '&pick=30';
+        const url = edgeFunctionUrl('itunes-charts') + '?pick=40';
         const res = await fetch(url, { headers: edgeFunctionHeaders() });
         data = await res.json();
         if (!res.ok || !data.success) {
@@ -2096,7 +2097,7 @@ async function loadDiscoverBatch() {
         artist: r.artistName || '',
         album: r.collectionName || '',
         releaseDate: r.releaseDate ? r.releaseDate.slice(0, 10) : '',
-        genre: r.primaryGenreName || genre.name,
+        genre: r.primaryGenreName || '',
         artworkUrl: (r.artworkUrl100 || '').replace('100x100', '300x300'),
         externalUrl: r.trackViewUrl || '',
         previewUrl: r.previewUrl || '',
@@ -2656,6 +2657,7 @@ async function openYoutubePlayer(item) {
   const videoId = extractYoutubeId(item && item.youtubeUrl);
   if (!videoId) { toast('유튜브 영상 정보를 찾을 수 없어요'); return; }
   if (previewAudio && !previewAudio.paused) previewAudio.pause(); // 다른 미리듣기가 재생 중이면 멈춤
+  pauseBgmForYoutube();
   try {
     const res = await fetch(edgeFunctionUrl('youtube-info') + '?url=' + encodeURIComponent(item.youtubeUrl), { headers: edgeFunctionHeaders() });
     const data = await res.json();
@@ -2674,11 +2676,31 @@ async function openYoutubePlayer(item) {
 function closeYoutubePlayer() {
   document.getElementById('ytPlayerFrame').src = '';
   document.getElementById('ytPlayerOverlay').style.display = 'none';
+  resumeBgmAfterPreview();
 }
 document.getElementById('ytPlayerCloseBtn').addEventListener('click', closeYoutubePlayer);
 document.getElementById('ytPlayerOverlay').addEventListener('click', (e) => {
   if (e.target.id === 'ytPlayerOverlay') closeYoutubePlayer();
 });
+
+// 음악 등록을 위해 검색했을 때 결과로 나온 유튜브 영상을(아직 저장 전이라 곡 id가 없음) 그대로
+// 미리듣기용으로 재생. 저장된 곡 재생(openYoutubePlayer)과 달리 "삭제된 영상이면 목록에서 지우기"
+// 로직은 필요 없어서 별도 함수로 둠.
+function previewYoutubeSuggestion(youtubeUrl) {
+  const videoId = extractYoutubeId(youtubeUrl);
+  if (!videoId) { toast('유튜브 영상 정보를 찾을 수 없어요'); return; }
+  if (previewAudio && !previewAudio.paused) previewAudio.pause();
+  pauseBgmForYoutube();
+  document.getElementById('ytPlayerFrame').src = 'https://www.youtube.com/embed/' + videoId + '?autoplay=1';
+  document.getElementById('ytPlayerOverlay').style.display = 'flex';
+}
+
+function pauseBgmForYoutube() {
+  if (bgmEnabled && !bgmAudio.paused) {
+    bgmPausedForPreview = true;
+    fadeBgm(0, 300).then(() => bgmAudio.pause());
+  }
+}
 
 // ---------- 곡 수정 ----------
 const editForm = document.getElementById('editForm');

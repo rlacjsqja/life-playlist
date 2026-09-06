@@ -1,7 +1,9 @@
-// 내 인생 플레이리스트 - 아이튠즈 "장르별 실시간 인기차트" 프록시 (Supabase Edge Function)
-// "새노래 탐색" 탭에서 씁니다. 검색어를 흉내내는 방식이 아니라, 실제 아이튠즈 인기차트에서
-// 곡을 가져오는 방식이라 "지금 진짜 인기 있는 곡"을 보여줄 수 있습니다.
-// 1) 장르별 인기차트(RSS)에서 곡 id 목록을 가져오고
+// 내 인생 플레이리스트 - 애플 뮤직 실시간 인기차트 프록시 (Supabase Edge Function)
+// "새노래 탐색" 탭에서 씁니다.
+// 참고: 예전에 쓰던 "장르별 차트 RSS"(itunes.apple.com/.../rss/topsongs/.../genre=.../json)는
+// 애플이 더 이상 실제 데이터를 내려주지 않는 빈 껍데기만 남아있어서(2026-09 확인), 장르 구분 없이
+// 애플의 공식 "국가별 실시간 Top 100" 차트(rss.marketingtools.apple.com)로 대체했습니다.
+// 1) 실시간 Top 100 차트에서 곡 id 목록을 가져오고
 // 2) 그 중 일부를 무작위로 골라 lookup API로 상세 정보(미리듣기 링크 포함)를 한 번에 조회합니다.
 
 const corsHeaders = {
@@ -16,22 +18,19 @@ Deno.serve(async (req: Request) => {
 
   try {
     const url = new URL(req.url);
-    const genre = url.searchParams.get("genre") || "14"; // 기본값: 팝
     const pick = Math.min(50, Math.max(1, parseInt(url.searchParams.get("pick") || "30", 10) || 30));
     const country = "kr";
 
-    const feedUrl = `https://itunes.apple.com/${country}/rss/topsongs/limit=100/genre=${encodeURIComponent(genre)}/json`;
-    const feedRes = await fetch(feedUrl);
-    if (!feedRes.ok) {
-      return new Response(JSON.stringify({ success: false, results: [], error: "chart HTTP " + feedRes.status }), {
+    const chartUrl = `https://rss.marketingtools.apple.com/api/v2/${country}/music/most-played/100/songs.json`;
+    const chartRes = await fetch(chartUrl);
+    if (!chartRes.ok) {
+      return new Response(JSON.stringify({ success: false, results: [], error: "chart HTTP " + chartRes.status }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const feedData = await feedRes.json();
-    const entries = (feedData.feed && feedData.feed.entry) || [];
-    const ids = entries
-      .map((e: any) => e.id && e.id.attributes && e.id.attributes["im:id"])
-      .filter(Boolean);
+    const chartData = await chartRes.json();
+    const entries = Array.isArray(chartData.feed && chartData.feed.results) ? chartData.feed.results : [];
+    const ids = entries.map((e: any) => e.id).filter(Boolean);
 
     if (!ids.length) {
       return new Response(JSON.stringify({ success: true, results: [] }), {

@@ -67,6 +67,25 @@
     position:absolute;
     top:14px;right:16px;
   }
+  /* BGM(내가 저장한 곡들의 미리듣기를 배경음악처럼 이어서 재생) 켜고 끄는 버튼 */
+  #bgmToggleBtn{
+    position:absolute;
+    top:14px;left:16px;
+    width:32px;height:32px;
+    border-radius:50%;
+    padding:0;
+    border:1px solid var(--border);
+    background:var(--card);
+    color:var(--text-dim);
+    cursor:pointer;
+    font-size:14px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  #bgmToggleBtn.playing{
+    color:var(--gold);
+    border-color:var(--gold);
+    box-shadow:0 0 0 3px rgba(240,201,117,.18);
+  }
   #miniAvatarBtn{
     display:none;
     width:32px;height:32px;
@@ -708,6 +727,7 @@
 
 <div class="sticky-top">
   <header>
+    <button id="bgmToggleBtn" type="button" title="BGM 켜기">🎵</button>
     <div id="miniAccount" class="mini-account">
       <button id="miniAvatarBtn" type="button" title="계정">
         <img id="loginAvatar" src="" alt="" />
@@ -1082,12 +1102,27 @@
 
 </div>
 
+<div class="wrap" id="discoverView" style="display:none;">
+  <div class="list-header">
+    <h2 style="margin:0;font-size:16px;">🔀 새 노래 탐색</h2>
+    <button type="button" id="discoverShuffleBtn" class="logout-btn">🔀 다른 곡 보기</button>
+  </div>
+  <div class="hint" style="font-size:12px;color:var(--text-dim);margin-top:6px;">
+    완전히 랜덤으로 뽑아본 곡들이에요. 미리듣기 해보고 마음에 들면 담아보세요.
+  </div>
+  <div id="discoverList" class="song-list" style="margin-top:12px;"></div>
+  <div id="discoverEmptyState" class="empty-state" style="display:none;">새로운 곡을 찾는 중...</div>
+</div>
+
 <nav id="bottomTabBar" class="bottom-tab-bar">
   <button type="button" class="tab-btn active" data-view="home">
     <span class="tab-icon">🏠</span><span class="tab-label">홈</span>
   </button>
   <button type="button" class="tab-btn" data-view="playlists">
     <span class="tab-icon">💿</span><span class="tab-label">플레이리스트</span>
+  </button>
+  <button type="button" class="tab-btn" data-view="discover">
+    <span class="tab-icon">🔀</span><span class="tab-label">새노래 탐색</span>
   </button>
 </nav>
 
@@ -1212,7 +1247,7 @@ function applyAuthUser(user) {
     document.getElementById('loginAvatar').src = meta.avatar_url || meta.picture || '';
     document.getElementById('loginStatus').textContent = (meta.full_name || meta.name || user.email) + '님으로 로그인됨';
   }
-  loadSongs();
+  loadSongs().then(tryAutoStartBgm);
 }
 
 document.getElementById('googleSignInBtn').addEventListener('click', async () => {
@@ -1296,10 +1331,12 @@ document.querySelectorAll('#bottomTabBar .tab-btn').forEach(btn => {
     document.querySelectorAll('#bottomTabBar .tab-btn').forEach(b => b.classList.toggle('active', b === btn));
     document.getElementById('homeView').style.display = view === 'home' ? 'block' : 'none';
     document.getElementById('playlistsView').style.display = view === 'playlists' ? 'block' : 'none';
+    document.getElementById('discoverView').style.display = view === 'discover' ? 'block' : 'none';
     if (view === 'playlists') {
       try { await loadPlaylists(); } catch (err) { toast('플레이리스트 목록을 불러오지 못했어요'); }
       renderPlaylistCards();
     }
+    if (view === 'discover' && !discoverResults.length) loadDiscoverBatch();
   });
 });
 
@@ -1869,6 +1906,201 @@ function togglePreview(url) {
 document.getElementById('previewPlayBtn').addEventListener('click', () => {
   togglePreview(document.getElementById('previewPlayBtn').dataset.url);
 });
+
+// ---------- BGM: 내가 저장한 곡들의 미리듣기를 배경음악처럼 이어서 재생 ----------
+// 다른 미리듣기(previewAudio)와는 별개의 오디오를 써서, 검색 중 미리듣기를 눌러도
+// BGM 재생목록/위치가 그대로 유지되고 잠깐 멈췄다가 이어짐.
+const bgmAudio = new Audio();
+bgmAudio.volume = 0.5;
+let bgmEnabled = false;
+let bgmPausedForPreview = false;
+let bgmQueue = [];
+let bgmIndex = 0;
+let bgmAutoStartAttempted = false;
+
+function shuffleArray(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function buildBgmQueue() {
+  bgmQueue = shuffleArray(currentSongs.filter(s => s.previewUrl).map(s => s.previewUrl));
+  bgmIndex = 0;
+}
+
+function playBgmCurrent() {
+  if (!bgmQueue.length) return Promise.resolve();
+  bgmAudio.src = bgmQueue[bgmIndex];
+  bgmAudio.currentTime = 0;
+  return bgmAudio.play();
+}
+
+bgmAudio.addEventListener('ended', () => {
+  if (!bgmEnabled || !bgmQueue.length) return;
+  bgmIndex = (bgmIndex + 1) % bgmQueue.length;
+  playBgmCurrent().catch(() => {});
+});
+
+function setBgmButtonState() {
+  const btn = document.getElementById('bgmToggleBtn');
+  if (!btn) return;
+  btn.classList.toggle('playing', bgmEnabled);
+  btn.title = bgmEnabled ? 'BGM 끄기' : 'BGM 켜기';
+}
+
+document.getElementById('bgmToggleBtn').addEventListener('click', () => {
+  if (bgmEnabled) {
+    bgmEnabled = false;
+    bgmAudio.pause();
+    setBgmButtonState();
+    return;
+  }
+  buildBgmQueue();
+  if (!bgmQueue.length) { toast('미리듣기가 가능한 곡이 아직 없어요'); return; }
+  bgmEnabled = true;
+  setBgmButtonState();
+  playBgmCurrent().catch(() => {
+    toast('BGM을 재생할 수 없어요');
+    bgmEnabled = false;
+    setBgmButtonState();
+  });
+});
+
+// 검색 결과/저장한 곡의 "미리듣기" 버튼을 누르면 BGM은 잠시 멈추고,
+// 그 미리듣기가 끝나거나(자동 종료) 사용자가 다시 눌러서 멈추면 BGM이 이어서 재생됨
+previewAudio.addEventListener('play', () => {
+  if (bgmEnabled && !bgmAudio.paused) {
+    bgmAudio.pause();
+    bgmPausedForPreview = true;
+  }
+});
+function resumeBgmAfterPreview() {
+  if (bgmPausedForPreview && bgmEnabled) bgmAudio.play().catch(() => {});
+  bgmPausedForPreview = false;
+}
+previewAudio.addEventListener('pause', resumeBgmAfterPreview);
+previewAudio.addEventListener('ended', resumeBgmAfterPreview);
+
+// 접속하자마자 자동으로 틀어보려는 시도 - 다만 대부분의 브라우저는 사용자가 한 번도
+// 페이지를 클릭/터치하기 전에는 소리 있는 자동재생을 막아서, 이 경우 조용히 꺼진 채로 남고
+// 사용자가 좌상단 🎵 버튼을 한 번 눌러서 직접 켜면 됨.
+async function tryAutoStartBgm() {
+  if (bgmAutoStartAttempted) return;
+  bgmAutoStartAttempted = true;
+  buildBgmQueue();
+  if (!bgmQueue.length) return;
+  bgmEnabled = true;
+  try {
+    await playBgmCurrent();
+  } catch (err) {
+    bgmEnabled = false;
+  }
+  setBgmButtonState();
+}
+
+// ---------- 새노래 탐색: 완전히 랜덤인 검색어로 뽑아본 곡들을 미리듣기와 함께 보여줌 ----------
+// "진짜 무작위 곡"을 주는 공개 API는 없어서, 다양한 장르/무드의 흔한 검색어 중 하나를 매번
+// 무작위로 골라 아이튠즈에서 검색한 뒤 그 결과를 섞어서 보여주는 방식으로 대신함.
+const DISCOVER_SEED_WORDS = [
+  'love', 'night', 'dream', 'summer', 'rain', 'dance', 'heart', 'blue', 'gold', 'story',
+  'memory', 'young', 'free', 'alone', 'together', 'light', 'star', 'sky', 'fire', 'wild',
+  'crazy', 'beautiful', 'forever', 'yesterday', 'tomorrow', 'home', 'time', 'baby', 'run', 'fly',
+  '사랑', '이별', '봄', '여름', '가을', '겨울', '바다', '우리', '그대', '오늘',
+  '행복', '이유', '눈물', '그리움', '시간', '바람', '꽃', '별', '기억', '처음'
+];
+let discoverResults = [];
+
+async function loadDiscoverBatch() {
+  const listEl = document.getElementById('discoverList');
+  const emptyEl = document.getElementById('discoverEmptyState');
+  listEl.innerHTML = '';
+  emptyEl.style.display = 'block';
+  emptyEl.textContent = '새로운 곡을 찾는 중...';
+  try {
+    const term = DISCOVER_SEED_WORDS[Math.floor(Math.random() * DISCOVER_SEED_WORDS.length)];
+    const results = await searchItunes(term);
+    // 이미 내가 담아둔 곡은 굳이 다시 추천하지 않도록 걸러냄
+    const existingKeys = new Set(currentSongs.map(s => normalizeForMatch(s.title) + '|' + normalizeForMatch(s.artist)));
+    const filtered = results.filter(r =>
+      r.previewUrl && !existingKeys.has(normalizeForMatch(r.title) + '|' + normalizeForMatch(r.artist))
+    );
+    discoverResults = shuffleArray(filtered).slice(0, 24);
+    renderDiscoverList();
+  } catch (err) {
+    emptyEl.style.display = 'block';
+    emptyEl.textContent = '불러오지 못했어요. "다른 곡 보기"를 다시 눌러주세요.';
+  }
+}
+
+function discoverItemHtml(item, idx) {
+  const year = item.releaseDate ? String(item.releaseDate).slice(0, 4) : '';
+  const subParts = [item.artist, item.album, year].filter(Boolean).map(escapeHtml);
+  const previewBtn = item.previewUrl
+    ? `<button type="button" class="preview-btn" data-url="${escapeHtml(item.previewUrl)}" title="미리듣기">▶</button>`
+    : '';
+  return `<div class="song-card" data-idx="${idx}">
+    <img src="${item.artworkUrl || PLACEHOLDER_ART}" loading="lazy" onerror="this.onerror=null;this.src='${PLACEHOLDER_ART}'" />
+    <div class="song-main">
+      <div class="song-text">
+        <div class="song-title">${escapeHtml(item.title)}</div>
+        <div class="song-sub">${subParts.join(' · ')}</div>
+      </div>
+    </div>
+    <div class="song-actions">
+      ${previewBtn}
+      <button type="button" class="discover-add-btn" data-idx="${idx}" title="추가하기">＋ 추가</button>
+    </div>
+  </div>`;
+}
+
+function renderDiscoverList() {
+  const listEl = document.getElementById('discoverList');
+  const emptyEl = document.getElementById('discoverEmptyState');
+  if (!discoverResults.length) {
+    listEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+    emptyEl.textContent = '조건에 맞는 곡을 못 찾았어요. "다른 곡 보기"를 눌러 다시 섞어보세요.';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  listEl.innerHTML = discoverResults.map(discoverItemHtml).join('');
+  listEl.querySelectorAll('.preview-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      togglePreview(btn.dataset.url);
+    });
+  });
+  listEl.querySelectorAll('.discover-add-btn').forEach(btn => {
+    btn.addEventListener('click', () => addDiscoverItem(+btn.dataset.idx, btn));
+  });
+}
+
+async function addDiscoverItem(idx, btnEl) {
+  const item = discoverResults[idx];
+  if (!item) return;
+  if (!isConfigured) { toast('먼저 Supabase 설정을 완료해주세요'); return; }
+  btnEl.disabled = true;
+  btnEl.textContent = '추가 중...';
+  try {
+    const nationalityValue = guessNationality(item);
+    const payload = Object.assign({ action: 'add' }, item, {
+      memo: '', rating: '', nationality: nationalityValue, country: '', source: 'search'
+    });
+    await postToSheet(payload);
+    toast('내가 사랑한 노래로 담았어요 🎧');
+    btnEl.textContent = '담았어요 ✓';
+    loadSongs();
+  } catch (err) {
+    toast('추가에 실패했어요: ' + err.message);
+    btnEl.disabled = false;
+    btnEl.textContent = '＋ 추가';
+  }
+}
+
+document.getElementById('discoverShuffleBtn').addEventListener('click', loadDiscoverBatch);
 
 document.getElementById('saveBtn').addEventListener('click', async () => {
   if (!selected) return;

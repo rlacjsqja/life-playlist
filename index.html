@@ -2068,15 +2068,44 @@ async function loadDiscoverBatch() {
     const seenKeys = new Set();
     const merged = [];
     const triedWords = new Set();
+    let rawResultCount = 0;
+    let lastIssue = '';
     // 검색어 하나로는 결과가 아예 없거나(원래 국내에 존재하지 않는 검색어 등) 다 걸러질 수 있어서,
-    // 후보가 너무 적으면 다른 검색어로 몇 번 더 시도해서 채움
+    // 후보가 너무 적으면 다른 검색어로 몇 번 더 시도해서 채움. 여기서는 searchItunes()를 그대로
+    // 쓰지 않고 직접 fetch해서, 결과가 0개일 때 "정말 결과가 없었는지" "요청 자체가 실패했는지"를
+    // 구분해 보여줄 수 있게 함 (실패 원인을 숨기지 않기 위해).
     for (let attempt = 0; attempt < 4 && merged.length < 8 && triedWords.size < DISCOVER_SEED_WORDS.length; attempt++) {
       let term;
       do {
         term = DISCOVER_SEED_WORDS[Math.floor(Math.random() * DISCOVER_SEED_WORDS.length)];
       } while (triedWords.has(term) && triedWords.size < DISCOVER_SEED_WORDS.length);
       triedWords.add(term);
-      const results = await searchItunes(term);
+      let data;
+      try {
+        const url = edgeFunctionUrl('itunes-search') + '?term=' + encodeURIComponent(term) + '&limit=100';
+        const res = await fetch(url, { headers: edgeFunctionHeaders() });
+        data = await res.json();
+        if (!res.ok || !data.success) {
+          lastIssue = 'HTTP ' + res.status + (data && data.error ? ' - ' + data.error : '');
+          continue;
+        }
+      } catch (fetchErr) {
+        lastIssue = fetchErr && fetchErr.message ? fetchErr.message : String(fetchErr);
+        continue;
+      }
+      const results = (data.results || []).map(r => ({
+        source: 'itunes',
+        title: r.trackName || '',
+        artist: r.artistName || '',
+        album: r.collectionName || '',
+        releaseDate: r.releaseDate ? r.releaseDate.slice(0, 10) : '',
+        genre: r.primaryGenreName || '',
+        artworkUrl: (r.artworkUrl100 || '').replace('100x100', '300x300'),
+        externalUrl: r.trackViewUrl || '',
+        previewUrl: r.previewUrl || '',
+        albumType: ''
+      }));
+      rawResultCount += results.length;
       for (const r of results) {
         if (!r.previewUrl) continue;
         const key = normalizeForMatch(r.title) + '|' + normalizeForMatch(r.artist);
@@ -2086,8 +2115,14 @@ async function loadDiscoverBatch() {
       }
     }
     discoverResults = shuffleArray(merged).slice(0, 24);
+    if (!discoverResults.length) {
+      if (lastIssue) throw new Error(lastIssue);
+      if (rawResultCount > 0) throw new Error('검색은 됐지만 미리듣기가 되는 곡이 없었어요 (검색된 ' + rawResultCount + '곡 중 미리듣기 지원 0곡)');
+      throw new Error('이 검색어들로는 곡을 찾지 못했어요');
+    }
     renderDiscoverList();
   } catch (err) {
+    listEl.innerHTML = '';
     emptyEl.style.display = 'block';
     emptyEl.textContent = '불러오지 못했어요: ' + (err && err.message ? err.message : String(err));
   }

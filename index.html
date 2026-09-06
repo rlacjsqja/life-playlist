@@ -6,23 +6,23 @@
 <title>내 인생 플레이리스트</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&family=Black+Han+Sans&display=swap" rel="stylesheet" />
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <style>
   :root{
-    /* 오래된 흑백사진/필름 컨셉: 거의 무채색 톤에, 손으로 색칠한 옛날 사진처럼
-       "명예의 전당"(평점 5점) 한 군데에만 골드를 유일한 포인트 컬러로 남겨둠 */
-    --bg:#121212;
-    --card:#1c1c1c;
-    --card-hover:#262626;
-    --border:#333333;
-    --text:#e8e6e2;
-    --text-dim:#9a9690;
-    --accent:#5c5c5c;
-    --accent-2:#3a3a3a;
-    --danger:#b0554a;
+    /* 파스텔 옐로우 + 보라 컨셉으로 전면 교체(2026-09). 밝은 라이트모드, 검정 테두리의
+       또렷한 카드/버튼, 두 색만 쓰는 심플한 팔레트 */
+    --bg:#F2F5A6;
+    --card:#FFFFFF;
+    --card-hover:#FBFBEF;
+    --border:#1A1A1A;
+    --text:#1A1A1A;
+    --text-dim:#6B6B52;
+    --accent:#7C3AED;
+    --accent-2:#5B21B6;
+    --danger:#E5484D;
     --radius:14px;
-    --gold:#f0c975; /* 평점 5점(명예의 전당) 곡 강조용 - 앱에서 유일하게 남기는 색 */
+    --gold:#7C3AED; /* 평점 5점(명예의 전당) 강조 - 예전엔 골드였지만 이제 보라 팔레트에 맞춰 accent와 동일 */
   }
   *{box-sizing:border-box;}
   html{
@@ -48,9 +48,9 @@
        그 아래에는 기존처럼 레코드판 홈(vinyl groove) 텍스처를 전체 페이지에 은은하게 깔아둠 */
     background-image:
       linear-gradient(to bottom, transparent 0%, transparent 50%, var(--bg) 100%),
-      url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0NjAiIGhlaWdodD0iNDYwIiB2aWV3Qm94PSIwIDAgNDYwIDQ2MCI+PGNpcmNsZSBjeD0iMjMwIiBjeT0iMjMwIiByPSIyMTAiIGZpbGw9IiMxYzFjMWMiIG9wYWNpdHk9IjAuODgiLz48Y2lyY2xlIGN4PSIyMzAiIGN5PSIyMzAiIHI9IjE3Ni40IiBmaWxsPSJub25lIiBzdHJva2U9IiM5YTk2OTAiIHN0cm9rZS13aWR0aD0iMS40IiBvcGFjaXR5PSIwLjE2Ii8+PGNpcmNsZSBjeD0iMjMwIiBjeT0iMjMwIiByPSIxMzguNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOWE5NjkwIiBzdHJva2Utd2lkdGg9IjEuNCIgb3BhY2l0eT0iMC4yIi8+PGNpcmNsZSBjeD0iMjMwIiBjeT0iMjMwIiByPSIxMDAuOCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOWE5NjkwIiBzdHJva2Utd2lkdGg9IjEuNCIgb3BhY2l0eT0iMC4yMiIvPjxjaXJjbGUgY3g9IjIzMCIgY3k9IjIzMCIgcj0iNjcuMiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOWE5NjkwIiBzdHJva2Utd2lkdGg9IjEuNCIgb3BhY2l0eT0iMC4yNCIvPjxjaXJjbGUgY3g9IjIzMCIgY3k9IjIzMCIgcj0iMjkuNCIgZmlsbD0iIzVjNWM1YyIgb3BhY2l0eT0iMC41NSIvPjwvc3ZnPg=="),
+      url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0NjAiIGhlaWdodD0iNDYwIiB2aWV3Qm94PSIwIDAgNDYwIDQ2MCI+PGNpcmNsZSBjeD0iMjMwIiBjeT0iMjMwIiByPSIyMTAiIGZpbGw9IiM1QjIxQjYiIG9wYWNpdHk9IjAuMTAiLz48Y2lyY2xlIGN4PSIyMzAiIGN5PSIyMzAiIHI9IjE3Ni40IiBmaWxsPSJub25lIiBzdHJva2U9IiMxQTFBMUEiIHN0cm9rZS13aWR0aD0iMS40IiBvcGFjaXR5PSIwLjE0Ii8+PGNpcmNsZSBjeD0iMjMwIiBjeT0iMjMwIiByPSIxMzguNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMUExQTFBIiBzdHJva2Utd2lkdGg9IjEuNCIgb3BhY2l0eT0iMC4xNiIvPjxjaXJjbGUgY3g9IjIzMCIgY3k9IjIzMCIgcj0iMTAwLjgiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzFBMUExQSIgc3Ryb2tlLXdpZHRoPSIxLjQiIG9wYWNpdHk9IjAuMTgiLz48Y2lyY2xlIGN4PSIyMzAiIGN5PSIyMzAiIHI9IjY3LjIiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzFBMUExQSIgc3Ryb2tlLXdpZHRoPSIxLjQiIG9wYWNpdHk9IjAuMiIvPjxjaXJjbGUgY3g9IjIzMCIgY3k9IjIzMCIgcj0iMjkuNCIgZmlsbD0iIzdDM0FFRCIgb3BhY2l0eT0iMC4zNSIvPjwvc3ZnPg=="),
       repeating-radial-gradient(circle at 88% 0%,
-        rgba(255,255,255,.025) 0px, rgba(255,255,255,.025) 1px,
+        rgba(0,0,0,.025) 0px, rgba(0,0,0,.025) 1px,
         transparent 1px, transparent 14px);
     background-repeat:no-repeat, no-repeat, repeat;
     background-position:top center, top center, 0 0;
@@ -84,7 +84,7 @@
   #bgmToggleBtn.playing{
     color:var(--gold);
     border-color:var(--gold);
-    box-shadow:0 0 0 3px rgba(240,201,117,.18);
+    box-shadow:0 0 0 3px rgba(124,58,237,.18);
   }
   #miniAvatarBtn{
     display:none;
@@ -115,12 +115,10 @@
   }
   header h1{
     margin:0;
-    font-size:22px;
-    font-weight:700;
-    background:linear-gradient(90deg,var(--accent),var(--accent-2));
-    -webkit-background-clip:text;
-    background-clip:text;
-    color:transparent;
+    font-size:24px;
+    font-family:'Black Han Sans',-apple-system,sans-serif;
+    letter-spacing:-0.01em;
+    color:var(--text);
   }
   header p{
     margin:6px 0 0;
@@ -175,7 +173,7 @@
   .sugg-item:last-child{border-bottom:none;}
   .sugg-item:hover, .sugg-item.active{background:var(--card-hover);}
   .sugg-item img{
-    width:42px;height:42px;border-radius:8px;flex-shrink:0;background:#262626;
+    width:42px;height:42px;border-radius:8px;flex-shrink:0;background:var(--card-hover);
   }
   .sugg-text{min-width:0;}
   .sugg-title{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -193,7 +191,7 @@
   }
   .preview-card.show{display:flex;}
   .preview-card img{
-    width:64px;height:64px;border-radius:10px;flex-shrink:0;background:#262626;
+    width:64px;height:64px;border-radius:10px;flex-shrink:0;background:var(--card-hover);
   }
   .preview-info{flex:1;min-width:0;}
   .preview-info .t{font-weight:700;font-size:15px;}
@@ -217,9 +215,9 @@
     margin-top:12px;
     width:100%;
     padding:12px;
-    border:none;
-    border-radius:10px;
-    background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    border:2px solid var(--border);
+    border-radius:999px;
+    background:var(--accent);
     color:#fff;
     font-weight:700;
     font-size:14px;
@@ -233,7 +231,7 @@
     align-items:center;
     justify-content:space-between;
   }
-  .list-header h2{font-size:15px;color:var(--text-dim);font-weight:600;margin:0;}
+  .list-header h2{font-size:16px;color:var(--text);font-family:'Black Han Sans',-apple-system,sans-serif;margin:0;}
   .count-pill{
     font-size:12px;
     background:var(--card);
@@ -251,10 +249,10 @@
   .filter-tab{
     flex:1;
     padding:8px;
-    border-radius:8px;
-    border:1px solid var(--border);
+    border-radius:999px;
+    border:2px solid var(--border);
     background:var(--card);
-    color:var(--text-dim);
+    color:var(--text);
     font-size:12.5px;
     cursor:pointer;
   }
@@ -355,9 +353,9 @@
     max-width:608px;
     display:flex;
     background:var(--card);
-    border:1px solid var(--border);
-    border-radius:16px;
-    box-shadow:0 8px 24px rgba(0,0,0,.4);
+    border:2px solid var(--border);
+    border-radius:999px;
+    box-shadow:0 6px 0 rgba(26,26,26,.12);
     z-index:40;
     overflow:hidden;
   }
@@ -381,17 +379,17 @@
     align-items:center;
     gap:10px;
     background:var(--card);
-    border:1px solid var(--border);
+    border:2px solid var(--border);
     border-radius:10px;
     padding:6px 10px;
   }
   .song-card img{
-    width:38px;height:38px;border-radius:8px;background:#262626;flex-shrink:0;
+    width:38px;height:38px;border-radius:8px;background:var(--card-hover);flex-shrink:0;
   }
   /* 평점 5점(내 인생 최고의 곡) 표시 - 앨범아트에 금테를 둘러서 명예의 전당처럼 보이게 함 */
   .song-card img.hof-art{
     border:2px solid var(--gold);
-    box-shadow:0 0 0 3px rgba(240,201,117,.22);
+    box-shadow:0 0 0 3px rgba(124,58,237,.22);
   }
   .song-main{flex:1;min-width:0;}
   .song-text{display:flex;flex-direction:column;min-width:0;}
@@ -417,9 +415,9 @@
   .density-tab{
     padding:4px 9px;
     border-radius:999px;
-    border:1px solid var(--border);
+    border:2px solid var(--border);
     background:var(--card);
-    color:var(--text-dim);
+    color:var(--text);
     font-size:11px;
     cursor:pointer;
     white-space:nowrap;
@@ -511,9 +509,9 @@
   .toast.show{opacity:1;}
 
   .config-banner{
-    background:#3a2a10;
-    border:1px solid #6b4a1a;
-    color:#ffd58a;
+    background:#FDE68A;
+    border:1px solid #1A1A1A;
+    color:#5A4400;
     font-size:12.5px;
     padding:10px 14px;
     border-radius:10px;
@@ -596,7 +594,7 @@
   .artist-result-item:hover{background:var(--card-hover);}
   .artist-result-item.dup{opacity:.45;cursor:not-allowed;}
   .artist-result-item input[type="checkbox"]{width:auto;flex-shrink:0;accent-color:var(--accent);}
-  .artist-result-item img{width:36px;height:36px;border-radius:8px;background:#262626;flex-shrink:0;}
+  .artist-result-item img{width:36px;height:36px;border-radius:8px;background:var(--card-hover);flex-shrink:0;}
   .artist-result-text{min-width:0;flex:1;}
   .artist-result-title{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .artist-result-sub{font-size:11px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -692,12 +690,13 @@
   }
   .login-status img{width:28px;height:28px;border-radius:50%;}
   .logout-btn{
-    background:none;
-    border:1px solid var(--border);
-    color:var(--text-dim);
-    padding:6px 10px;
-    border-radius:8px;
+    background:var(--card);
+    border:2px solid var(--border);
+    color:var(--text);
+    padding:6px 12px;
+    border-radius:999px;
     font-size:12px;
+    font-weight:600;
     cursor:pointer;
   }
   /* 명예의 전당(평점 5점) 진열장 - 내가 실제로 등록한 곡의 앨범 커버만 사용하므로 저작권 걱정 없이
@@ -717,7 +716,7 @@
   .hof-wall-item{
     flex:0 0 auto;width:52px;height:52px;border-radius:4px;object-fit:cover;
     background:var(--card);border:2px solid var(--gold);
-    box-shadow:0 3px 10px rgba(0,0,0,.4), 0 0 0 3px rgba(240,201,117,.18);
+    box-shadow:0 3px 10px rgba(0,0,0,.4), 0 0 0 3px rgba(124,58,237,.18);
   }
   .hof-wall-track .hof-wall-item:nth-child(odd){transform:rotate(-2deg);}
   .hof-wall-track .hof-wall-item:nth-child(even){transform:rotate(2deg);}
@@ -839,7 +838,7 @@
       <button id="ytFetchBtn" class="logout-btn" type="button" style="flex:0 0 auto;">정보 가져오기</button>
     </div>
     <div id="ytPreviewRow" style="display:none;gap:10px;align-items:center;">
-      <img id="ytPreviewImg" src="" alt="" style="width:64px;height:36px;object-fit:cover;border-radius:6px;background:#262626;flex-shrink:0;" />
+      <img id="ytPreviewImg" src="" alt="" style="width:64px;height:36px;object-fit:cover;border-radius:6px;background:var(--card-hover);flex-shrink:0;" />
       <div style="font-size:12px;color:var(--text-dim);min-width:0;">원본 제목: <span id="ytRawTitle"></span></div>
     </div>
     <input id="ytTitle" type="text" placeholder="제목 * (자동 추천되며, 틀리면 고쳐주세요)" />
@@ -3601,7 +3600,7 @@ async function resolvePreviewUrl(item) {
 }
 
 const PLACEHOLDER_ART = 'data:image/svg+xml;utf8,' + encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="#262626"/><text x="50" y="58" font-size="34" text-anchor="middle" fill="#9a9690">♪</text></svg>'
+  '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="#FBFBEF"/><text x="50" y="58" font-size="34" text-anchor="middle" fill="#6B6B52">♪</text></svg>'
 );
 
 function renderSongCard(item, opts) {

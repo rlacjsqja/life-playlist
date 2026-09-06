@@ -42,20 +42,19 @@
     margin:0;
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
     background-color:var(--bg);
-    /* 레코드 선반(vinyl shelf) 느낌 - 사진 없이 CSS만으로, 상단 한 곳에만 홈이 그려진
-       레코드판(둥근 판) 여러 장이 선반 위에 나란히 세워져 있는 모습을 그려 넣고
-       (그 중 하나만 골드 라벨로 아주 옅게 강조), 아래로 스크롤할수록 배경색으로
-       자연스럽게 페이드아웃되도록 함(반복 배치하지 않음).
+    /* 레코드판 하나를 크게 확대해서 상단 배경에만 은은하게 넣어둠(여러 장을 선반에 진열한
+       모습은 뺌 - "명예의 전당" 진열장과 컨셉이 겹치지 않도록 배경은 이거 하나만).
+       아래로 스크롤할수록 배경색으로 자연스럽게 페이드아웃되도록 함.
        그 아래에는 기존처럼 레코드판 홈(vinyl groove) 텍스처를 전체 페이지에 은은하게 깔아둠 */
     background-image:
-      linear-gradient(to bottom, transparent 0%, transparent 55%, var(--bg) 100%),
-      url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5MDAiIGhlaWdodD0iMjYwIiB2aWV3Qm94PSIwIDAgOTAwIDI2MCI+PHJlY3QgeD0iMCIgeT0iMjQ2IiB3aWR0aD0iOTAwIiBoZWlnaHQ9IjQiIGZpbGw9IiMzMzMzMzMiIG9wYWNpdHk9IjAuNTUiLz48Y2lyY2xlIGN4PSI5MCIgY3k9IjE1OCIgcj0iOTIiIGZpbGw9IiMxYzFjMWMiIG9wYWNpdHk9IjAuODUiLz48Y2lyY2xlIGN4PSI5MCIgY3k9IjE1OCIgcj0iNzUuNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOWE5NjkwIiBzdHJva2Utd2lkdGg9IjEuMyIgb3BhY2l0eT0iMC4yMiIvPjxjaXJjbGUgY3g9IjkwIiBjeT0iMTU4IiByPSI1Ny4wIiBmaWxsPSJub25lIiBzdHJva2U9IiM5YTk2OTAiIHN0cm9rZS13aWR0aD0iMS4zIiBvcGFjaXR5PSIwLjI4Ii8+PGNpcmNsZSBjeD0iOTAiIGN5PSIxNTgiIHI9IjM4LjYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzlhOTY5MCIgc3Ryb2tlLXdpZHRoPSIxLjMiIG9wYWNpdHk9IjAuMyIvPjxjaXJjbGUgY3g9IjkwIiBjeT0iMTU4IiByPSIxNC43IiBmaWxsPSIjNWM1YzVjIiBvcGFjaXR5PSIwLjYiLz48Y2lyY2xlIGN4PSIyMzUiIGN5PSIxNTMiIHI9Ijk2IiBmaWxsPSIjMWMxYzFjIiBvcGFjaXR5PSIwLjg1Ii8+PGNpcmNsZSBjeD0iMjM1IiBjeT0iMTUzIiByPSI3OC43IiBmaWxsPSJub25lIiBzdHJva2U9IiM5YTk2OTAiIHN0cm9rZS13aWR0aD0iMS4zIiBvcGFjaXR5PSIwLjIyIi8+PGNpcmNsZSBjeD0iMjM1IiBjeT0iMTUzIiByPSI1OS41IiBmaWxsPSJub25lIiBzdHJva2U9IiM5YTk2OTAiIHN0cm9rZS13aWR0aD0iMS4zIiBvcGFjaXR5PSIwLjI4Ii8+PGNpcmNsZSBjeD0iMjM1IiBjeT0iMTUzIiByPSI0MC4zIiBmaWxsPSJub25lIiBzdHJva2U9IiM5YTk2OTAiIHN0cm9rZS13aWR0aD0iMS4zIiBvcGFjaXR5PSIwLjMiLz48Y2lyY2xlIGN4PSIyMzUiIGN5PSIxNTMiIHI9IjE1LjQiIGZpbGw9IiM1YzVjNWMiIG9wYWNpdHk9IjAuNiIvPjxjaXJjbGUgY3g9IjM4MCIgY3k9IjEzOCIgcj0iMTA0IiBmaWxsPSIjMjYyNjI2IiBvcGFjaXR5PSIwLjg1Ii8+PGNpcmNsZSBjeD0iMzgwIiBjeT0iMTM4IiByPSI4NS4zIiBmaWxsPSJub25lIiBzdHJva2U9IiM5YTk2OTAiIHN0cm9rZS13aWR0aD0iMS4zIiBvcGFjaXR5PSIwLjIyIi8+PGNpcmNsZSBjeD0iMzgwIiBjeT0iMTM4IiByPSI2NC41IiBmaWxsPSJub25lIiBzdHJva2U9IiM5YTk2OTAiIHN0cm9rZS13aWR0aD0iMS4zIiBvcGFjaXR5PSIwLjI4Ii8+PGNpcmNsZSBjeD0iMzgwIiBjeT0iMTM4IiByPSI0My43IiBmaWxsPSJub25lIiBzdHJva2U9IiM5YTk2OTAiIHN0cm9rZS13aWR0aD0iMS4zIiBvcGFjaXR5PSIwLjMiLz48Y2lyY2xlIGN4PSIzODAiIGN5PSIxMzgiIHI9IjE2LjYiIGZpbGw9IiM1YzVjNWMiIG9wYWNpdHk9IjAuNiIvPjxjaXJjbGUgY3g9IjUyNSIgY3k9IjE1NyIgcj0iOTMiIGZpbGw9IiMxYzFjMWMiIG9wYWNpdHk9IjAuODUiLz48Y2lyY2xlIGN4PSI1MjUiIGN5PSIxNTciIHI9Ijc2LjMiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzlhOTY5MCIgc3Ryb2tlLXdpZHRoPSIxLjMiIG9wYWNpdHk9IjAuMjIiLz48Y2lyY2xlIGN4PSI1MjUiIGN5PSIxNTciIHI9Ijc3LjciIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzlhOTY5MCIgc3Ryb2tlLXdpZHRoPSIxLjMiIG9wYWNpdHk9IjAuMjgiLz48Y2lyY2xlIGN4PSI1MjUiIGN5PSIxNTciIHI9IjM5LjEiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzlhOTY5MCIgc3Ryb2tlLXdpZHRoPSIxLjMiIG9wYWNpdHk9IjAuMyIvPjxjaXJjbGUgY3g9IjUyNSIgY3k9IjE1NyIgcj0iMTQuOSIgZmlsbD0iI2YwYzk3NSIgb3BhY2l0eT0iMC4yOCIvPjxjaXJjbGUgY3g9IjY3MCIgY3k9IjE1OCIgcj0iOTEiIGZpbGw9IiMyNjI2MjYiIG9wYWNpdHk9IjAuODUiLz48Y2lyY2xlIGN4PSI2NzAiIGN5PSIxNTgiIHI9Ijc0LjYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzlhOTY5MCIgc3Ryb2tlLXdpZHRoPSIxLjMiIG9wYWNpdHk9IjAuMjIiLz48Y2lyY2xlIGN4PSI2NzAiIGN5PSIxNTgiIHI9IjU2LjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzlhOTY5MCIgc3Ryb2tlLXdpZHRoPSIxLjMiIG9wYWNpdHk9IjAuMjgiLz48Y2lyY2xlIGN4PSI2NzAiIGN5PSIxNTgiIHI9IjM4LjIiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzlhOTY5MCIgc3Ryb2tlLXdpZHRoPSIxLjMiIG9wYWNpdHk9IjAuMyIvPjxjaXJjbGUgY3g9IjY3MCIgY3k9IjE1OCIgcj0iMTQuNiIgZmlsbD0iIzVjNWM1YyIgb3BhY2l0eT0iMC42Ii8+PGNpcmNsZSBjeD0iODE1IiBjeT0iMTQ3IiByPSI5NyIgZmlsbD0iIzFjMWMxYyIgb3BhY2l0eT0iMC44NSIvPjxjaXJjbGUgY3g9IjgxNSIgY3k9IjE0NyIgcj0iNzkuNSIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOWE5NjkwIiBzdHJva2Utd2lkdGg9IjEuMyIgb3BhY2l0eT0iMC4yMiIvPjxjaXJjbGUgY3g9IjgxNSIgY3k9IjE0NyIgcj0iNjAuMSIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOWE5NjkwIiBzdHJva2Utd2lkdGg9IjEuMyIgb3BhY2l0eT0iMC4yOCIvPjxjaXJjbGUgY3g9IjgxNSIgY3k9IjE0NyIgcj0iNDAuNyIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOWE5NjkwIiBzdHJva2Utd2lkdGg9IjEuMyIgb3BhY2l0eT0iMC4zIi8+PGNpcmNsZSBjeD0iODE1IiBjeT0iMTQ3IiByPSIxNS41IiBmaWxsPSIjNWM1YzVjIiBvcGFjaXR5PSIwLjYiLz48L3N2Zz4="),
+      linear-gradient(to bottom, transparent 0%, transparent 50%, var(--bg) 100%),
+      url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0NjAiIGhlaWdodD0iNDYwIiB2aWV3Qm94PSIwIDAgNDYwIDQ2MCI+PGNpcmNsZSBjeD0iMjMwIiBjeT0iMjMwIiByPSIyMTAiIGZpbGw9IiMxYzFjMWMiIG9wYWNpdHk9IjAuODgiLz48Y2lyY2xlIGN4PSIyMzAiIGN5PSIyMzAiIHI9IjE3Ni40IiBmaWxsPSJub25lIiBzdHJva2U9IiM5YTk2OTAiIHN0cm9rZS13aWR0aD0iMS40IiBvcGFjaXR5PSIwLjE2Ii8+PGNpcmNsZSBjeD0iMjMwIiBjeT0iMjMwIiByPSIxMzguNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOWE5NjkwIiBzdHJva2Utd2lkdGg9IjEuNCIgb3BhY2l0eT0iMC4yIi8+PGNpcmNsZSBjeD0iMjMwIiBjeT0iMjMwIiByPSIxMDAuOCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOWE5NjkwIiBzdHJva2Utd2lkdGg9IjEuNCIgb3BhY2l0eT0iMC4yMiIvPjxjaXJjbGUgY3g9IjIzMCIgY3k9IjIzMCIgcj0iNjcuMiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOWE5NjkwIiBzdHJva2Utd2lkdGg9IjEuNCIgb3BhY2l0eT0iMC4yNCIvPjxjaXJjbGUgY3g9IjIzMCIgY3k9IjIzMCIgcj0iMjkuNCIgZmlsbD0iIzVjNWM1YyIgb3BhY2l0eT0iMC41NSIvPjwvc3ZnPg=="),
       repeating-radial-gradient(circle at 88% 0%,
         rgba(255,255,255,.025) 0px, rgba(255,255,255,.025) 1px,
         transparent 1px, transparent 14px);
     background-repeat:no-repeat, no-repeat, repeat;
     background-position:top center, top center, 0 0;
-    background-size:100% 260px, 100% 260px, auto;
+    background-size:100% 460px, 460px 460px, auto;
     color:var(--text);
     padding-bottom:90px;
   }
@@ -697,7 +696,7 @@
   }
   .hof-wall-track::-webkit-scrollbar{display:none;}
   .hof-wall-item{
-    flex:0 0 auto;width:64px;height:64px;border-radius:4px;object-fit:cover;
+    flex:0 0 auto;width:52px;height:52px;border-radius:4px;object-fit:cover;
     background:var(--card);border:2px solid var(--gold);
     box-shadow:0 3px 10px rgba(0,0,0,.4), 0 0 0 3px rgba(240,201,117,.18);
   }

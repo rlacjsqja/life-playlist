@@ -1105,10 +1105,13 @@
 <div class="wrap" id="discoverView" style="display:none;">
   <div class="list-header">
     <h2 style="margin:0;font-size:16px;">🔀 새 노래 탐색</h2>
-    <button type="button" id="discoverShuffleBtn" class="logout-btn">🔀 다른 곡 보기</button>
   </div>
   <div class="hint" style="font-size:12px;color:var(--text-dim);margin-top:6px;">
-    애플 뮤직 실시간 인기차트에서 무작위로 뽑아본 곡들이에요. 미리듣기 해보고 마음에 들면 담아보세요.
+    애플 뮤직 실시간 인기차트에서 장르별로 뽑아본 곡들이에요 (지금 장르: <span id="discoverGenreLabel">-</span>). 미리듣기 해보고 마음에 들면 담아보세요.
+  </div>
+  <div class="row" style="margin-top:10px;">
+    <button type="button" id="discoverSameGenreBtn" class="logout-btn">🔁 같은 장르로</button>
+    <button type="button" id="discoverDiffGenreBtn" class="logout-btn">🔀 다른 장르로</button>
   </div>
   <div id="discoverList" class="song-list" style="margin-top:12px;"></div>
   <div id="discoverEmptyState" class="empty-state" style="display:none;">새로운 곡을 찾는 중...</div>
@@ -2055,69 +2058,95 @@ async function tryAutoStartBgm() {
   setBgmButtonState();
 }
 
-// ---------- 새노래 탐색: 검색이 아니라 애플 뮤직 "실시간 인기차트"에서 곡을 뽑아 보여줌 ----------
-// 내가 뭔가를 검색해서 나온 결과가 아니라, 애플의 공식 실시간 Top 100 차트에서 무작위로
-// 골라 보여주는 방식이라 "지금 사람들이 많이 듣는, 내가 몰랐던 곡"을 발견하는 느낌에 가까움.
-// (참고: 예전엔 장르별로 나눠서 가져오려 했지만, 애플이 장르별 차트 피드는 더 이상 서비스하지
-// 않아서 지금은 장르 구분 없는 국가 전체 Top 100에서 무작위로 골라옴)
+// ---------- 새노래 탐색: 애플 뮤직 "실시간 인기차트"를 장르별로 묶어서 "같은 장르/다른 장르"로 골라봄 ----------
+// 검색이 아니라 애플의 공식 실시간 Top 100 차트에서 뽑아오는 방식. 애플 검색 API의 genreIndex
+// 속성으로 장르별 조회를 시도해봤지만 항상 0건이라(직접 테스트로 확인, song 엔티티엔 지원 안 되는
+// 듯) 그 방식 대신, 차트 100곡을 통째로 받아와서 각 곡에 이미 붙어있는 장르 정보(primaryGenreName)
+// 기준으로 묶어두고 그 안에서 "같은 장르"/"다른 장르"를 골라 보여줌. 차트 자체는 자주 바뀌지 않아서
+// 한 번 받아오면 이번 방문 동안은 다시 네트워크를 타지 않고 재사용함.
+let discoverPool = null;   // { 장르이름: [곡, ...] }
+let discoverGenre = null;  // 지금 보여주고 있는 장르
 let discoverResults = [];
 
-async function loadDiscoverBatch() {
+async function fetchDiscoverPool() {
+  const url = edgeFunctionUrl('itunes-charts');
+  const res = await fetch(url, { headers: edgeFunctionHeaders() });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error('HTTP ' + res.status + (data && data.error ? ' - ' + data.error : ''));
+  }
+  // 이미 내가 담아둔 곡은 굳이 다시 추천하지 않도록 걸러냄
+  const existingKeys = new Set(currentSongs.map(s => normalizeForMatch(s.title) + '|' + normalizeForMatch(s.artist)));
+  const seenKeys = new Set();
+  const groups = {};
+  for (const r of (data.results || [])) {
+    const previewUrl = r.previewUrl || '';
+    if (!previewUrl) continue;
+    const title = r.trackName || '';
+    const artist = r.artistName || '';
+    const key = normalizeForMatch(title) + '|' + normalizeForMatch(artist);
+    if (existingKeys.has(key) || seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    const genreName = r.primaryGenreName || '기타';
+    const item = {
+      source: 'itunes', title, artist,
+      album: r.collectionName || '',
+      releaseDate: r.releaseDate ? r.releaseDate.slice(0, 10) : '',
+      genre: genreName,
+      artworkUrl: (r.artworkUrl100 || '').replace('100x100', '300x300'),
+      externalUrl: r.trackViewUrl || '',
+      previewUrl,
+      albumType: ''
+    };
+    (groups[genreName] = groups[genreName] || []).push(item);
+  }
+  return groups;
+}
+
+// excludeGenre와 다른 장르 중에서 무작위로 하나 고름. 고를 수 있는 다른 장르가 없으면(차트에
+// 장르가 하나뿐인 극단적인 경우) 그냥 아무 장르나 다시 고름
+function pickDiscoverGenre(pool, excludeGenre) {
+  const eligible = Object.keys(pool).filter(g => pool[g] && pool[g].length);
+  const alternatives = excludeGenre ? eligible.filter(g => g !== excludeGenre) : eligible;
+  const candidates = alternatives.length ? alternatives : eligible;
+  if (!candidates.length) return null;
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
+// mode: 생략(처음 로드/랜덤) | 'same'(같은 장르 다시) | 'diff'(다른 장르로)
+async function loadDiscoverBatch(mode) {
   const listEl = document.getElementById('discoverList');
   const emptyEl = document.getElementById('discoverEmptyState');
-  listEl.innerHTML = '';
   emptyEl.style.display = 'block';
   emptyEl.textContent = '실시간 인기차트에서 새로운 곡을 찾는 중...';
   try {
     if (!isConfigured) throw new Error('Supabase 설정이 완료되지 않았어요');
-    // 이미 내가 담아둔 곡은 굳이 다시 추천하지 않도록 걸러냄
-    const existingKeys = new Set(currentSongs.map(s => normalizeForMatch(s.title) + '|' + normalizeForMatch(s.artist)));
-    const seenKeys = new Set();
-    const merged = [];
-    let rawResultCount = 0;
-    let lastIssue = '';
-    // 애플 차트 서버가 가끔 일시적으로 응답이 늦거나 실패할 때(504 등)를 대비해 몇 번 재시도함
-    for (let attempt = 0; attempt < 3 && merged.length < 8; attempt++) {
-      let data;
-      try {
-        const url = edgeFunctionUrl('itunes-charts') + '?pick=40';
-        const res = await fetch(url, { headers: edgeFunctionHeaders() });
-        data = await res.json();
-        if (!res.ok || !data.success) {
-          lastIssue = 'HTTP ' + res.status + (data && data.error ? ' - ' + data.error : '');
-          continue;
+    if (!discoverPool) {
+      let lastIssue = '';
+      // 애플 차트 서버가 가끔 일시적으로 응답이 늦거나 실패할 때(504 등)를 대비해 몇 번 재시도함
+      for (let attempt = 0; attempt < 3 && !discoverPool; attempt++) {
+        try {
+          discoverPool = await fetchDiscoverPool();
+        } catch (err) {
+          lastIssue = err && err.message ? err.message : String(err);
         }
-      } catch (fetchErr) {
-        lastIssue = fetchErr && fetchErr.message ? fetchErr.message : String(fetchErr);
-        continue;
       }
-      const results = (data.results || []).map(r => ({
-        source: 'itunes',
-        title: r.trackName || '',
-        artist: r.artistName || '',
-        album: r.collectionName || '',
-        releaseDate: r.releaseDate ? r.releaseDate.slice(0, 10) : '',
-        genre: r.primaryGenreName || '',
-        artworkUrl: (r.artworkUrl100 || '').replace('100x100', '300x300'),
-        externalUrl: r.trackViewUrl || '',
-        previewUrl: r.previewUrl || '',
-        albumType: ''
-      }));
-      rawResultCount += results.length;
-      for (const r of results) {
-        if (!r.previewUrl) continue;
-        const key = normalizeForMatch(r.title) + '|' + normalizeForMatch(r.artist);
-        if (existingKeys.has(key) || seenKeys.has(key)) continue;
-        seenKeys.add(key);
-        merged.push(r);
-      }
+      if (!discoverPool) throw new Error(lastIssue || '인기차트를 가져오지 못했어요');
     }
-    discoverResults = shuffleArray(merged).slice(0, 24);
-    if (!discoverResults.length) {
-      if (lastIssue) throw new Error(lastIssue);
-      if (rawResultCount > 0) throw new Error('차트는 받아왔지만 미리듣기가 되는 곡이 없었어요 (조회된 ' + rawResultCount + '곡 중 미리듣기 지원 0곡)');
-      throw new Error('지금은 인기차트를 가져오지 못했어요');
+
+    let genre;
+    if (mode === 'same' && discoverGenre && discoverPool[discoverGenre] && discoverPool[discoverGenre].length) {
+      genre = discoverGenre;
+    } else if (mode === 'diff') {
+      genre = pickDiscoverGenre(discoverPool, discoverGenre);
+    } else {
+      genre = pickDiscoverGenre(discoverPool, null);
     }
+    if (!genre) throw new Error('차트는 받아왔지만 미리듣기가 되는 곡이 없었어요');
+
+    discoverGenre = genre;
+    discoverResults = shuffleArray(discoverPool[genre].slice()).slice(0, 24);
+    document.getElementById('discoverGenreLabel').textContent = genre;
     renderDiscoverList();
   } catch (err) {
     listEl.innerHTML = '';
@@ -2153,7 +2182,7 @@ function renderDiscoverList() {
   if (!discoverResults.length) {
     listEl.innerHTML = '';
     emptyEl.style.display = 'block';
-    emptyEl.textContent = '조건에 맞는 곡을 못 찾았어요. "다른 곡 보기"를 눌러 다시 섞어보세요.';
+    emptyEl.textContent = '이 장르에는 보여줄 곡이 없어요. "다른 장르로"를 눌러보세요.';
     return;
   }
   emptyEl.style.display = 'none';
@@ -2183,6 +2212,10 @@ async function addDiscoverItem(idx, btnEl) {
     await postToSheet(payload);
     toast('내가 사랑한 노래로 담았어요 🎧');
     btnEl.textContent = '담았어요 ✓';
+    // 이번 방문 동안 캐시해둔 차트 풀에서도 빼서, 같은 곡이 또 추천되지 않게 함
+    if (discoverPool && item.genre && discoverPool[item.genre]) {
+      discoverPool[item.genre] = discoverPool[item.genre].filter(x => x !== item);
+    }
     loadSongs();
   } catch (err) {
     toast('추가에 실패했어요: ' + err.message);
@@ -2191,7 +2224,8 @@ async function addDiscoverItem(idx, btnEl) {
   }
 }
 
-document.getElementById('discoverShuffleBtn').addEventListener('click', loadDiscoverBatch);
+document.getElementById('discoverSameGenreBtn').addEventListener('click', () => loadDiscoverBatch('same'));
+document.getElementById('discoverDiffGenreBtn').addEventListener('click', () => loadDiscoverBatch('diff'));
 
 document.getElementById('saveBtn').addEventListener('click', async () => {
   if (!selected) return;

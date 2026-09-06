@@ -2071,16 +2071,22 @@ let discoverResults = [];
 // 애플이 붙이는 장르 이름이 실제로는 너무 잘게 쪼개져 있음(예: "힙합"과 "힙합/랩"이 따로 잡히고,
 // "록"/"한국 록"/"인디 록"/"팝/록"도 다 따로 잡힘) - 확인해보니 KR 차트 100곡 중 K-Pop이 74곡을
 // 차지하고 나머지 26곡이 12개 장르로 잘게 흩어져있어서, 대부분 장르가 1~2곡뿐이었음.
-// 비슷한 장르 이름을 하나로 묶어서 이 문제를 줄임.
+// 비슷한 장르 이름을 하나로 묶어서 이 문제를 줄임. 이제 해외 차트도 함께 가져오기 때문에
+// 장르 이름이 영어로 올 수도 있어서 한글/영어 둘 다 확인함.
 function normalizeDiscoverGenre(raw) {
   const g = raw || '';
+  const gl = g.toLowerCase();
   if (/k-?pop/i.test(g)) return 'K-Pop';
-  if (g.includes('힙합') || g.includes('랩')) return '힙합';
-  if (g.includes('록')) return '록';
-  if (g.includes('R&B') || g.includes('소울')) return 'R&B/소울';
-  if (g.includes('댄스')) return '댄스';
   if (/j-?pop/i.test(g)) return 'J-Pop';
-  if (g.includes('팝')) return '팝';
+  if (g.includes('힙합') || g.includes('랩') || gl.includes('hip-hop') || gl.includes('hip hop') || gl.includes('rap')) return '힙합';
+  if (g.includes('록') || gl.includes('rock')) return '록';
+  if (g.includes('R&B') || g.includes('소울') || gl.includes('r&b') || gl.includes('soul')) return 'R&B/소울';
+  if (g.includes('댄스') || gl.includes('dance') || gl.includes('electronic') || gl.includes('edm')) return '댄스';
+  if (g.includes('컨트리') || gl.includes('country')) return '컨트리';
+  if (g.includes('라틴') || gl.includes('latin')) return '라틴';
+  if (g.includes('얼터너티브') || gl.includes('alternative')) return '얼터너티브';
+  if (g.includes('싱어송라이터') || gl.includes('singer/songwriter') || gl.includes('singer-songwriter')) return '싱어송라이터';
+  if (g.includes('팝') || gl.includes('pop')) return '팝';
   return g || '기타';
 }
 
@@ -2116,9 +2122,9 @@ async function fetchDiscoverPool() {
     };
     (groups[genreName] = groups[genreName] || []).push(item);
   }
-  // 그래도 곡이 너무 적게 남은(3곡 미만) 장르는 "기타"로 한 번 더 합쳐서, "다른 장르로"를 눌러도
-  // 항상 어느 정도 곡이 나오게 함
-  const MIN_GENRE_SIZE = 3;
+  // 그래도 곡이 너무 적게 남은 장르는 "기타"로 한 번 더 합쳐서, 스크롤하면서 들을 수 있을 만큼
+  // 항상 충분한 곡 수가 나오게 함
+  const MIN_GENRE_SIZE = 10;
   const leftovers = [];
   for (const g of Object.keys(groups)) {
     if (g !== '기타' && groups[g].length < MIN_GENRE_SIZE) {
